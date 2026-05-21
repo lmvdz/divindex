@@ -1,31 +1,28 @@
 export interface PricePoint {
-	t: string;
-	p: number;
-	q: number;
+	t: string; // yyyy-mm-dd
+	p: number; // price in base currency (Exalted)
+	q?: number; // daily quantity (listings) — volume proxy
 }
 
-export interface Hero {
-	key: string;
-	text: string;
-	unit: string;
-	latest: number;
-	changePct: number;
-	window: number;
+export interface Currency {
+	id: number;
+	apiId: string;
+	name: string;
+	price: number;
+	changePct: number; // over full window
+	change1dPct: number; // last vs previous day
+	volume: number; // latest daily quantity
+	high: number;
+	low: number;
 	series: PricePoint[];
 }
 
-export interface TickerRow {
-	api: string;
-	text: string;
-	price: number;
-	wkChange: number;
-}
-
-export interface IndexData {
-	base: string;
+export interface Market {
 	league: string;
-	asOf: string;
-	hero: Hero;
-	ticker: TickerRow[];
+	base: string; // 'Exalted Orb'
+	asOf: string; // ISO date of latest point
+	fetchedAt: number; // epoch ms
+	currencies: Currency[];
 	note: string;
+	source: string;
 }
