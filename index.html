@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Divindex — the Path of Exile 2 economy index</title>
+  <meta name="description" content="Real-time currency rates, deep price history, and a free forecasting game for the Path of Exile 2 economy — built on the game's official Currency Exchange." />
+  <meta name="theme-color" content="#0a0c12" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Divindex — the Path of Exile 2 economy index" />
+  <meta property="og:description" content="Track every orb. Forecast every move. A real-time index and free forecasting game for the Path of Exile 2 economy." />
+  <meta property="og:url" content="https://divindex.com" />
+  <meta property="og:image" content="https://divindex.com/assets/og.svg" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="canonical" href="https://divindex.com" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="nav" aria-label="Primary">
+    <a class="brand" href="#main" aria-label="Divindex home">
+      <span class="orb" aria-hidden="true"></span>
+      <span class="brand-word">Divindex</span>
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#index">Index</a>
+      <a href="#forecast">The Forecast</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="btn btn-primary nav-cta" href="#early-access">Get early access</a>
+  </header>
+
+  <main id="main">
+
+    <!-- HERO -->
+    <section class="hero" id="index">
+      <div class="hero-copy">
+        <p class="eyebrow">Path of Exile 2 · Economy Index</p>
+        <h1>The Path of Exile&nbsp;2 economy,<br /> as an index.</h1>
+        <p class="lede">
+          Real-time currency rates, deep price history, and a free forecasting
+          game — built on volume-weighted data straight from the game's
+          official Currency Exchange.
+        </p>
+
+        <form class="cta-form" id="cta-hero" novalidate>
+          <label class="sr-only" for="email-hero">Email address</label>
+          <input class="field" id="email-hero" name="email" type="email"
+                 inputmode="email" autocomplete="email"
+                 placeholder="you@example.com" required />
+          <button class="btn btn-primary" type="submit">Get early access</button>
+          <p class="form-msg" id="msg-hero" role="status" aria-live="polite"></p>
+        </form>
+        <p class="cta-fine">No spam. One email when Divindex opens.</p>
+      </div>
+
+      <!-- LIVE CARD -->
+      <aside class="card chart-card" aria-labelledby="chart-title">
+        <div class="chart-head">
+          <div>
+            <h2 class="chart-title" id="chart-title">Divine Orb</h2>
+            <p class="chart-sub" id="chart-sub">Priced in Exalted Orbs · last 7 days</p>
+          </div>
+          <div class="chart-quote">
+            <span class="quote-value" id="quote-value">—</span>
+            <span class="quote-change" id="quote-change"></span>
+          </div>
+        </div>
+
+        <div class="chart-wrap" id="chart-wrap" aria-live="polite">
+          <!-- states injected by main.js: skeleton / chart / error -->
+          <div class="chart-skeleton" id="chart-skeleton" aria-hidden="true"></div>
+        </div>
+
+        <ul class="ticker" id="ticker" aria-label="Currency snapshot"></ul>
+        <p class="card-foot" id="card-foot"></p>
+      </aside>
+    </section>
+
+    <!-- FEATURES -->
+    <section class="features" aria-label="What Divindex does">
+      <article class="card feature">
+        <h3>Live currency index</h3>
+        <p>Every orb priced against Exalted in real time — a volume-weighted
+           rate from the in-game Currency Exchange, not listing noise.</p>
+      </article>
+      <article class="card feature">
+        <h3>History that goes deep</h3>
+        <p>Follow each currency and unique across the league. See the pumps,
+           the crashes, and the shape of every league launch.</p>
+      </article>
+      <article class="card feature">
+        <h3>The Forecast</h3>
+        <p>Call where the Divine settles each week and climb the leaderboard.
+           Completely free, no payouts — just bragging rights.</p>
+      </article>
+    </section>
+
+    <!-- FORECAST -->
+    <section class="forecast" id="forecast">
+      <div class="section-head">
+        <p class="eyebrow">The Forecast</p>
+        <h2>A free weekly game of economic foresight.</h2>
+        <p class="lede">Read the market, make your call, and see who knows the
+           economy best. Skill and bragging rights — nothing else on the line.</p>
+      </div>
+
+      <ol class="steps">
+        <li class="card step">
+          <span class="step-no" aria-hidden="true">1</span>
+          <h3>Make your call</h3>
+          <p>Predict Friday's Divine&nbsp;Orb rate before the week opens.</p>
+        </li>
+        <li class="card step">
+          <span class="step-no" aria-hidden="true">2</span>
+          <h3>We settle on the real exchange</h3>
+          <p>Resolution is the volume-weighted close from the official
+             Currency Exchange — no judgment calls.</p>
+        </li>
+        <li class="card step">
+          <span class="step-no" aria-hidden="true">3</span>
+          <h3>Climb the leaderboard</h3>
+          <p>Closest calls take the week. Points and rank — no entry fee,
+             no prizes, no wagering.</p>
+        </li>
+      </ol>
+      <p class="forecast-note">
+        Divindex is a free game of skill. There is no entry fee, no payout,
+        and no wagering of any kind.
+      </p>
+    </section>
+
+    <!-- EARLY ACCESS -->
+    <section class="early" id="early-access">
+      <div class="card early-card">
+        <h2>Get early access</h2>
+        <p>Be first in when Divindex opens for the next league.</p>
+        <form class="cta-form" id="cta-foot" novalidate>
+          <label class="sr-only" for="email-foot">Email address</label>
+          <input class="field" id="email-foot" name="email" type="email"
+                 inputmode="email" autocomplete="email"
+                 placeholder="you@example.com" required />
+          <button class="btn btn-primary" type="submit">Notify me</button>
+          <p class="form-msg" id="msg-foot" role="status" aria-live="polite"></p>
+        </form>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="faq" id="faq" aria-label="Frequently asked questions">
+      <h2>FAQ</h2>
+      <details class="card qa">
+        <summary>Where does the data come from?</summary>
+        <p>From Path of Exile 2's official in-game Currency Exchange — real,
+           cleared trades aggregated into a volume-weighted rate, not scraped
+           listing prices.</p>
+      </details>
+      <details class="card qa">
+        <summary>Is the Forecast gambling?</summary>
+        <p>No. It's a free game of skill. There's no entry fee, no payout, and
+           nothing is wagered — you play for rank and bragging rights.</p>
+      </details>
+      <details class="card qa">
+        <summary>Are you affiliated with Grinding Gear Games?</summary>
+        <p>No. Divindex is an independent project and is not affiliated with or
+           endorsed by Grinding Gear Games in any way.</p>
+      </details>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-top">
+      <a class="brand" href="#main" aria-label="Divindex home">
+        <span class="orb" aria-hidden="true"></span>
+        <span class="brand-word">Divindex</span>
+      </a>
+      <p class="footer-tag">Track every orb. Forecast every move.</p>
+      <a class="footer-contact" href="mailto:hello@divindex.com">hello@divindex.com</a>
+    </div>
+    <p class="disclaimer">
+      Divindex is an independent project and is <strong>not affiliated with or
+      endorsed by Grinding Gear Games</strong> in any way. Path of Exile is a
+      trademark of Grinding Gear Games. All game content and data belong to
+      their respective owners.
+    </p>
+    <p class="copyright">© <span id="year">2026</span> Divindex</p>
+  </footer>
+
+  <script src="main.js" defer></script>
+</body>
+</html>

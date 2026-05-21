@@ -1,0 +1,77 @@
+{
+ "base": "Exalted Orb",
+ "league": "Fate of the Vaal",
+ "asOf": "2026-05-21",
+ "hero": {
+  "key": "divine",
+  "text": "Divine Orb",
+  "unit": "Exalted Orbs",
+  "latest": 174.1989,
+  "changePct": -9.0,
+  "window": 7,
+  "series": [
+   {
+    "t": "2026-05-15",
+    "p": 191.4322,
+    "q": 11795157
+   },
+   {
+    "t": "2026-05-16",
+    "p": 179.086,
+    "q": 12811490
+   },
+   {
+    "t": "2026-05-17",
+    "p": 163.9828,
+    "q": 13349054
+   },
+   {
+    "t": "2026-05-18",
+    "p": 174.3505,
+    "q": 10899477
+   },
+   {
+    "t": "2026-05-19",
+    "p": 180.794,
+    "q": 11001039
+   },
+   {
+    "t": "2026-05-20",
+    "p": 178.343,
+    "q": 10857326
+   },
+   {
+    "t": "2026-05-21",
+    "p": 174.1989,
+    "q": 10643621
+   }
+  ]
+ },
+ "ticker": [
+  {
+   "api": "divine",
+   "text": "Divine Orb",
+   "price": 174.1989,
+   "wkChange": -9.0
+  },
+  {
+   "api": "chaos",
+   "text": "Chaos Orb",
+   "price": 4.9366,
+   "wkChange": -7.09
+  },
+  {
+   "api": "annul",
+   "text": "Orb of Annulment",
+   "price": 14.5415,
+   "wkChange": 26.38
+  },
+  {
+   "api": "mirror",
+   "text": "Mirror of Kalandra",
+   "price": 1735245.8617,
+   "wkChange": -8.23
+  }
+ ],
+ "note": "Recent Path of Exile 2 Currency Exchange data, shown for illustration."
+}

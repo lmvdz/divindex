@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" font-family="Georgia, serif">
+  <defs>
+    <radialGradient id="bg" cx="80%" cy="0%" r="90%">
+      <stop offset="0%" stop-color="#1a1608"/>
+      <stop offset="45%" stop-color="#0c0f17"/>
+      <stop offset="100%" stop-color="#0a0c12"/>
+    </radialGradient>
+    <radialGradient id="orb" cx="34%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#fff4d6"/>
+      <stop offset="38%" stop-color="#f0c069"/>
+      <stop offset="72%" stop-color="#d49a3c"/>
+      <stop offset="100%" stop-color="#7a531a"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <g transform="translate(96,250)">
+    <circle cx="34" cy="6" r="34" fill="url(#orb)"/>
+    <text x="92" y="22" fill="#eaecf3" font-size="76" font-weight="600">Divindex</text>
+  </g>
+  <text x="96" y="372" fill="#99a2b8" font-size="34" font-family="Inter, sans-serif">The Path of Exile 2 economy, as an index.</text>
+  <text x="96" y="424" fill="#f0c069" font-size="26" font-family="Inter, sans-serif" letter-spacing="2">TRACK EVERY ORB · FORECAST EVERY MOVE</text>
+  <polyline points="96,560 220,540 340,548 460,512 580,524 700,470 820,486 940,440 1060,452 1104,430"
+    fill="none" stroke="#f0c069" stroke-width="4" stroke-opacity="0.7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
