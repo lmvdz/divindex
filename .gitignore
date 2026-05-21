@@ -1,8 +1,13 @@
 .DS_Store
 node_modules/
-*.log
+/build
+/.svelte-kit
+/package
 .env
 .env.*
+!.env.example
+vite.config.ts.timestamp-*
+*.log
 .vercel
 .idea/
 .vscode/
