@@ -7,6 +7,7 @@
 </script>
 
 <a class="skip-link" href="#main">Skip to content</a>
+<div class="noise" aria-hidden="true"></div>
 <Nav />
 {@render children()}
 <Footer />

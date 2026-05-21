@@ -21,7 +21,7 @@
 			return;
 		}
 		if (!FORM_ENDPOINT) {
-			msg = `Thanks! Email ${CONTACT} to lock your spot.`;
+			msg = `Thanks — email ${CONTACT} to lock your spot.`;
 			msgClass = 'ok';
 			return;
 		}
