@@ -1,5 +1,5 @@
 import seed from '$lib/data/series.json';
-import type { Currency, Market, PricePoint } from '$lib/types';
+import type { Candle, Currency, History, Market, PricePoint } from '$lib/types';
 
 const UA = 'Divindex/0.1 (+https://divindex.com; contact: hello@divindex.com)';
 const BASE = 'https://poe2scout.com/api';
@@ -8,6 +8,7 @@ const TTL = 10 * 60 * 1000;
 
 let leagueCache: { value: string; at: number } | null = null;
 const marketCache = new Map<string, { data: Market; at: number }>();
+const historyCache = new Map<string, { data: History; at: number }>();
 
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
 
@@ -155,4 +156,48 @@ function fallbackMarket(): Market {
 		note: 'Snapshot — live feed unavailable.',
 		source: 'snapshot'
 	};
+}
+
+// Deep history -> daily OHLC candles, bucketed from poe2scout's intraday logs.
+export async function getHistory(itemId: number, league?: string): Promise<History> {
+	const lg = league ?? (await getCurrentLeague());
+	const key = `${lg}:${itemId}`;
+	const cached = historyCache.get(key);
+	if (cached && Date.now() - cached.at < TTL) return cached.data;
+
+	try {
+		const enc = encodeURIComponent(lg);
+		const res = (await getJson(
+			`${BASE}/${REALM}/Leagues/${enc}/Items/${itemId}/History?LogCount=400`
+		)) as { PriceHistory?: RawLog[] };
+
+		const pts = (res.PriceHistory ?? [])
+			.filter((p) => typeof p?.Price === 'number')
+			.sort((a, b) => String(a.Time).localeCompare(String(b.Time)));
+
+		const days = new Map<string, { o: number; h: number; l: number; c: number }>();
+		for (const p of pts) {
+			const d = String(p.Time).slice(0, 10);
+			const cur = days.get(d);
+			if (!cur) days.set(d, { o: p.Price, h: p.Price, l: p.Price, c: p.Price });
+			else {
+				cur.h = Math.max(cur.h, p.Price);
+				cur.l = Math.min(cur.l, p.Price);
+				cur.c = p.Price;
+			}
+		}
+		const candles: Candle[] = [...days.entries()].map(([time, v]) => ({
+			time,
+			open: round(v.o),
+			high: round(v.h),
+			low: round(v.l),
+			close: round(v.c)
+		}));
+
+		const data: History = { id: itemId, candles };
+		if (candles.length) historyCache.set(key, { data, at: Date.now() });
+		return data;
+	} catch {
+		return cached?.data ?? { id: itemId, candles: [] };
+	}
 }

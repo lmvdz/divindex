@@ -558,3 +558,255 @@ a {
 		display: none;
 	}
 }
+
+/* ---- shared surfaces / nav (used by forecast) ---- */
+.card {
+	background: linear-gradient(180deg, var(--surface), var(--surface-2));
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.eyebrow {
+	text-transform: uppercase;
+	letter-spacing: 0.18em;
+	font-size: 0.72rem;
+	font-weight: 600;
+	color: var(--gold);
+	margin: 0 0 12px;
+}
+.form-msg {
+	flex-basis: 100%;
+	margin: 6px 2px 0;
+	font-size: 0.85rem;
+	min-height: 1.1em;
+}
+.form-msg.ok {
+	color: var(--pos);
+}
+.form-msg.err {
+	color: var(--neg);
+}
+.tb-nav {
+	display: flex;
+	gap: 4px;
+}
+.tb-nav a {
+	color: var(--muted);
+	text-decoration: none;
+	font-size: 0.85rem;
+	font-weight: 500;
+	padding: 6px 10px;
+	border-radius: 8px;
+}
+.tb-nav a:hover {
+	color: var(--text);
+	background: var(--surface);
+}
+.tb-nav a.active {
+	color: var(--gold);
+	background: rgba(224, 180, 101, 0.08);
+}
+
+/* ---- forecast page ---- */
+.fc {
+	position: relative;
+	z-index: 2;
+	height: 100dvh;
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+}
+.fc-top {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	padding: 14px 24px;
+	border-bottom: 1px solid var(--border);
+	background: rgba(10, 12, 18, 0.7);
+	backdrop-filter: blur(10px);
+}
+.fc-nav {
+	display: flex;
+	gap: 4px;
+	margin-left: auto;
+}
+.fc-nav a {
+	color: var(--muted);
+	text-decoration: none;
+	font-size: 0.9rem;
+	padding: 6px 12px;
+	border-radius: 8px;
+}
+.fc-nav a:hover {
+	color: var(--text);
+}
+.fc-nav a.active {
+	color: var(--gold);
+	background: rgba(224, 180, 101, 0.08);
+}
+.fc-body {
+	width: 100%;
+	max-width: 860px;
+	margin: 0 auto;
+	padding: 40px 24px 64px;
+	display: flex;
+	flex-direction: column;
+	gap: 28px;
+	flex: 1;
+}
+.fc-intro h1 {
+	font: 600 clamp(2rem, 4vw, 2.9rem)/1.06 var(--serif);
+	margin: 0 0 14px;
+	letter-spacing: -0.5px;
+}
+.fc-lede {
+	color: var(--muted);
+	font-size: 1.05rem;
+	max-width: 60ch;
+	margin: 0;
+}
+.fc-round {
+	padding: 26px;
+}
+.fc-round-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 18px;
+}
+.fc-round-head h2 {
+	font: 600 1.2rem var(--serif);
+	margin: 4px 0 0;
+}
+.fc-label {
+	display: block;
+	font-size: 0.72rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--faint);
+}
+.fc-countdown {
+	text-align: right;
+}
+.fc-cd {
+	font: 600 1.4rem var(--mono);
+	color: var(--gold);
+	letter-spacing: -0.5px;
+}
+.fc-stats {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 1px;
+	margin: 22px 0;
+	background: var(--border);
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	overflow: hidden;
+}
+.fc-stats div {
+	background: var(--surface);
+	padding: 14px 16px;
+}
+.fc-stats b {
+	display: block;
+	margin-top: 6px;
+	font: 600 1.15rem var(--mono);
+}
+.fc-stats em {
+	font-style: normal;
+	font-size: 0.72rem;
+	color: var(--faint);
+}
+.fc-form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+}
+.fc-form .field {
+	flex: 1 1 160px;
+}
+.fc-history h2 {
+	font: 600 1.4rem var(--serif);
+	margin: 0 0 16px;
+	letter-spacing: -0.3px;
+}
+.fc-empty {
+	color: var(--faint);
+	font-size: 0.92rem;
+}
+.fc-result {
+	padding: 18px 20px;
+	margin-bottom: 14px;
+}
+.fc-result-head {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	border-bottom: 1px solid var(--border);
+	padding-bottom: 12px;
+	margin-bottom: 8px;
+}
+.fc-result-head h3 {
+	font: 600 1rem var(--mono);
+	margin: 0;
+}
+.fc-actual {
+	color: var(--muted);
+	font-size: 0.86rem;
+}
+.fc-board {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+.fc-board li {
+	display: grid;
+	grid-template-columns: 28px 1fr auto auto;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 0;
+	border-bottom: 1px solid var(--border);
+}
+.fc-board li:last-child {
+	border-bottom: 0;
+}
+.fc-rank {
+	font: 600 0.9rem var(--mono);
+	color: var(--gold);
+	text-align: center;
+}
+.fc-board .fc-name {
+	font-size: 0.9rem;
+	color: var(--text);
+}
+.fc-pred {
+	font: 500 0.86rem var(--mono);
+	color: var(--muted);
+}
+.fc-err {
+	font: 500 0.82rem var(--mono);
+	color: var(--faint);
+	min-width: 86px;
+	text-align: right;
+}
+.fc-foot {
+	border-top: 1px solid var(--border);
+	padding: 18px 24px;
+	color: var(--faint);
+	font-size: 0.78rem;
+	text-align: center;
+}
+@media (max-width: 560px) {
+	.fc-stats {
+		grid-template-columns: 1fr;
+	}
+	.fc-round-head {
+		flex-direction: column;
+	}
+	.fc-countdown {
+		text-align: left;
+	}
+}

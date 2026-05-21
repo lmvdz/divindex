@@ -17,6 +17,36 @@ export interface Currency {
 	series: PricePoint[];
 }
 
+export interface Candle {
+	time: string; // yyyy-mm-dd
+	open: number;
+	high: number;
+	low: number;
+	close: number;
+}
+
+export interface History {
+	id: number;
+	candles: Candle[];
+}
+
+export interface ForecastState {
+	current: {
+		id: string;
+		target: number;
+		currencyApiId: string;
+		price: number;
+		calls: number;
+		yourCall: { name: string; predicted: number } | null;
+	};
+	history: Array<{
+		id: string;
+		target: number;
+		actual: number;
+		leaderboard: Array<{ name: string; predicted: number; errorPct: number }>;
+	}>;
+}
+
 export interface Market {
 	league: string;
 	base: string; // 'Exalted Orb'

@@ -14,6 +14,10 @@
 		<span class="orb" aria-hidden="true"></span>
 		<span class="brand-word">Divindex</span>
 	</a>
+	<nav class="tb-nav">
+		<a href="/" aria-current="page" class="active">Terminal</a>
+		<a href="/forecast">Forecast</a>
+	</nav>
 	<span class="lg-chip" title="Active league">{league}</span>
 	<span class="tb-spacer"></span>
 	<span class="tb-updated mono">Updated {timeOf(fetchedAt)}</span>

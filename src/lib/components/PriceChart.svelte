@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Currency } from '$lib/types';
+	import type { Candle, Currency } from '$lib/types';
 	import { fmt, signStr, signClass, ticker } from '$lib/format';
 
 	let { currency, base }: { currency: Currency; base: string } = $props();
@@ -8,20 +8,57 @@
 	let el = $state<HTMLDivElement>();
 	let ready = $state(false);
 	let failed = $state(false);
-	let legendPrice = $state(0);
-	let legendDate = $state('');
+	let loading = $state(false);
+	let candles = $state<Candle[]>([]);
+
+	let legPrice = $state(0);
+	let legChg = $state(0);
+	let legDate = $state('');
 
 	type ChartApi = import('lightweight-charts').IChartApi;
-	type AreaApi = import('lightweight-charts').ISeriesApi<'Area'>;
+	type CandleApi = import('lightweight-charts').ISeriesApi<'Candlestick'>;
 	let chart: ChartApi | undefined;
-	let series: AreaApi | undefined;
+	let series: CandleApi | undefined;
 
 	function resetLegend() {
-		const s = currency.series;
-		if (s.length) {
-			legendPrice = s[s.length - 1].p;
-			legendDate = s[s.length - 1].t;
+		if (candles.length) {
+			const last = candles[candles.length - 1];
+			const prev = candles.length > 1 ? candles[candles.length - 2] : last;
+			legPrice = last.close;
+			legChg = prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0;
+			legDate = last.time;
+		} else {
+			legPrice = currency.price;
+			legChg = currency.change1dPct;
+			legDate = '';
 		}
+	}
+
+	// degenerate candles from the list snapshot, used until/if deep history loads
+	function synth(c: Currency): Candle[] {
+		return c.series.map((p) => ({ time: p.t, open: p.p, high: p.p, low: p.p, close: p.p }));
+	}
+
+	function paint() {
+		if (ready && series) {
+			series.setData(candles);
+			chart?.timeScale().fitContent();
+			resetLegend();
+		}
+	}
+
+	async function loadHistory(c: Currency) {
+		loading = true;
+		try {
+			const r = await fetch(`/api/history/${c.id}`);
+			const d = r.ok ? ((await r.json()) as { candles?: Candle[] }) : { candles: [] };
+			candles = d.candles?.length ? d.candles : synth(c);
+		} catch {
+			candles = synth(c);
+		} finally {
+			loading = false;
+		}
+		paint();
 	}
 
 	onMount(() => {
@@ -42,34 +79,33 @@
 						horzLines: { color: 'rgba(35,40,56,0.4)' }
 					},
 					rightPriceScale: { borderColor: '#232838' },
-					timeScale: { borderColor: '#232838', fixLeftEdge: true, fixRightEdge: true },
+					timeScale: { borderColor: '#232838' },
 					crosshair: {
 						mode: lc.CrosshairMode.Normal,
 						vertLine: { color: '#2d3346', labelBackgroundColor: '#1b2030' },
 						horzLine: { color: '#2d3346', labelBackgroundColor: '#1b2030' }
 					}
 				});
-				series = chart.addSeries(lc.AreaSeries, {
-					lineColor: '#e0b465',
-					lineWidth: 2,
-					topColor: 'rgba(224,180,101,0.22)',
-					bottomColor: 'rgba(224,180,101,0)',
-					priceLineColor: '#c2913f',
-					priceLineStyle: 2,
-					lastValueVisible: true
+				series = chart.addSeries(lc.CandlestickSeries, {
+					upColor: '#66cf8a',
+					downColor: '#e57170',
+					wickUpColor: '#66cf8a',
+					wickDownColor: '#e57170',
+					borderVisible: false
 				});
 				chart.subscribeCrosshairMove((param) => {
-					const point = series
-						? (param.seriesData.get(series) as { value: number } | undefined)
+					const pt = series
+						? (param.seriesData.get(series) as { close: number } | undefined)
 						: undefined;
-					if (point && param.time) {
-						legendPrice = point.value;
-						legendDate = String(param.time);
+					if (pt && param.time) {
+						legPrice = pt.close;
+						legDate = String(param.time);
 					} else {
 						resetLegend();
 					}
 				});
 				ready = true;
+				paint();
 			} catch {
 				failed = true;
 			}
@@ -78,18 +114,14 @@
 			try {
 				chart?.remove();
 			} catch {
-				/* already disposed */
+				/* disposed */
 			}
 		};
 	});
 
-	// re-feed whenever the selected currency changes
+	// load deep history whenever the selected currency changes (incl. initial)
 	$effect(() => {
-		const c = currency;
-		if (!ready || !series || !chart) return;
-		series.setData(c.series.map((p) => ({ time: p.t, value: p.p })));
-		chart.timeScale().fitContent();
-		resetLegend();
+		loadHistory(currency);
 	});
 </script>
 
@@ -97,9 +129,13 @@
 	<div class="chart-legend">
 		<span class="cl-sym">{ticker(currency.apiId)}</span>
 		<span class="cl-name">{currency.name}</span>
-		<span class="cl-price">{fmt(legendPrice || currency.price)} <em>{base}</em></span>
-		<span class="cl-chg {signClass(currency.change1dPct)}">{signStr(currency.change1dPct)}</span>
-		{#if legendDate}<span class="cl-date">{legendDate}</span>{/if}
+		<span class="cl-price">{fmt(legPrice || currency.price)} <em>{base}</em></span>
+		<span class="cl-chg {signClass(legChg)}">{signStr(legChg)}</span>
+		{#if loading}
+			<span class="cl-date">loading…</span>
+		{:else if legDate}
+			<span class="cl-date">{legDate}</span>
+		{/if}
 	</div>
 	{#if failed}
 		<div class="chart-fallback">Chart unavailable — data still listed at right.</div>
@@ -108,7 +144,7 @@
 			class="chart-canvas"
 			bind:this={el}
 			role="img"
-			aria-label={`${currency.name} price chart in ${base}`}
+			aria-label={`${currency.name} candlestick chart in ${base}`}
 		></div>
 	{/if}
 </div>
