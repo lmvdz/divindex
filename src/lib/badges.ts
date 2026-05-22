@@ -80,6 +80,22 @@ export const BADGES: Badge[] = [
 		test: (s) => s.bestStreak >= 10
 	},
 	{
+		id: 'contrarian',
+		name: 'Contrarian',
+		rarity: 'magic',
+		desc: 'Beat the consensus ten times.',
+		flavor: 'The crowd is a fine map. You brought your own.',
+		test: (s) => s.oracleBeats >= 10
+	},
+	{
+		id: 'oracle-slayer',
+		name: 'Oracle Slayer',
+		rarity: 'unique',
+		desc: 'Beat the consensus fifty times.',
+		flavor: '"They asked the crowd. You asked better."',
+		test: (s) => s.oracleBeats >= 50
+	},
+	{
 		id: 'centurion',
 		name: 'Centurion',
 		rarity: 'rare',

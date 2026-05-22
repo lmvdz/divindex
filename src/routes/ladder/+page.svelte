@@ -105,6 +105,7 @@
 				<div class="st-stat"><span class="st-label">Direction</span><b class="mono">{pct(hitRate(ladder.you.hits, ladder.you.calls))}</b></div>
 				<div class="st-stat"><span class="st-label">Accuracy</span><b class="mono">{pct(youAcc)}</b></div>
 				<div class="st-stat"><span class="st-label">Streak</span><b class="mono">{ladder.you.streak}🔥</b></div>
+				<div class="st-stat"><span class="st-label">Oracle beats</span><b class="mono">{ladder.you.oracleBeats}</b></div>
 				{#if myBadges.length}
 					<div class="st-badges">
 						{#each myBadges as b (b!.id)}
@@ -149,6 +150,21 @@
 				</tbody>
 			</table>
 		</div>
+
+		{#if ladder.hall.length}
+			<section class="hall">
+				<h2 class="eyebrow">Hall of Fame</h2>
+				<div class="hall-grid">
+					{#each ladder.hall as h (h.league + h.endedAt)}
+						<div class="hall-card">
+							<span class="hall-league">{h.league}</span>
+							<b class="hall-champ">{h.champion}</b>
+							<span class="hall-meta">{compact(h.points)} Omens · {h.players} diviners</span>
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/if}
 
 		<section class="badge-gallery">
 			<h2 class="eyebrow">Divination cards</h2>

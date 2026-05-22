@@ -85,6 +85,7 @@ export interface PlayerStats {
 	bestAcc: number; // best single-call accuracy (0..1)
 	streak: number; // current correct-direction streak
 	bestStreak: number;
+	oracleBeats: number; // calls that beat the consensus accuracy
 	markets: string[]; // distinct currencies forecasted
 	badges: string[]; // earned badge ids
 	byH: Record<Horizon, HStat>;
@@ -103,12 +104,21 @@ export interface LadderRow {
 	badges: number; // count of earned badges
 }
 
+export interface HallEntry {
+	league: string;
+	champion: string;
+	points: number;
+	players: number;
+	endedAt: number;
+}
+
 export interface Ladder {
 	updatedAt: number;
 	league: string;
 	top: LadderRow[];
 	you: PlayerStats | null;
 	yourRank: number | null;
+	hall: HallEntry[];
 }
 
 export interface Profile {

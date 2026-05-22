@@ -23,7 +23,7 @@ export const GET: RequestHandler = async ({ url, cookies, locals, platform }) =>
 	const market = await getMarket();
 	const c = pick(market, url.searchParams.get('currency'));
 	if (!c) return json({ error: 'No market' }, { status: 503 });
-	return json(await getForecast(platform, pid, c.apiId, c.name, c.price));
+	return json(await getForecast(platform, pid, c.apiId, c.name, c.price, market.league));
 };
 
 export const POST: RequestHandler = async ({ request, cookies, locals, platform }) => {
@@ -60,6 +60,6 @@ export const POST: RequestHandler = async ({ request, cookies, locals, platform 
 	const market = await getMarket();
 	const c = pick(market, body.currency);
 	// store the current price as the call's baseline so direction can be scored
-	await addCall(platform, pid, name, body.currency, body.horizon, predicted, c.price);
-	return json(await getForecast(platform, pid, c.apiId, c.name, c.price));
+	await addCall(platform, pid, name, body.currency, body.horizon, predicted, c.price, market.league);
+	return json(await getForecast(platform, pid, c.apiId, c.name, c.price, market.league));
 };

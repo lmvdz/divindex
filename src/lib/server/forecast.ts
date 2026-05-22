@@ -2,6 +2,7 @@ import type {
 	Calib,
 	Calibration,
 	Forecast,
+	HallEntry,
 	Horizon,
 	HorizonState,
 	HStat,
@@ -37,7 +38,9 @@ interface Epoch {
 }
 interface DB {
 	epochs: Epoch[];
-	users?: Record<string, PlayerStats>;
+	users?: Record<string, PlayerStats>; // current-season standings
+	currentLeague?: string;
+	hall?: HallEntry[]; // past league champions
 }
 
 type KV = {
@@ -92,6 +95,7 @@ function median(xs: number[]): number | null {
 const PARTICIPATION = 10;
 const DIRECTION = 40;
 const ACCURACY_MAX = 50;
+const BEAT = 20; // bonus for beating the consensus's accuracy
 
 function zeroH(): HStat {
 	return { calls: 0, hits: 0, points: 0, accSum: 0 };
@@ -110,6 +114,7 @@ function ensureUser(db: DB, pid: string, name: string): PlayerStats {
 			bestAcc: 0,
 			streak: 0,
 			bestStreak: 0,
+			oracleBeats: 0,
 			markets: [],
 			badges: [],
 			byH: { hour: zeroH(), day: zeroH(), week: zeroH() },
@@ -120,7 +125,7 @@ function ensureUser(db: DB, pid: string, name: string): PlayerStats {
 	return u;
 }
 
-function scoreInto(db: DB, e: Epoch, c: Call, actual: number) {
+function scoreInto(db: DB, e: Epoch, c: Call, actual: number, consAcc: number, contested: boolean) {
 	const u = ensureUser(db, c.pid, c.name);
 	u.name = c.name;
 	const hasBase = c.base != null && c.base > 0;
@@ -128,13 +133,17 @@ function scoreInto(db: DB, e: Epoch, c: Call, actual: number) {
 	const actDir = hasBase ? Math.sign(actual - (c.base as number)) : 0;
 	const dirCorrect = hasBase && predDir !== 0 && predDir === actDir;
 	const accuracy = actual > 0 ? Math.max(0, 1 - Math.min(1, Math.abs(c.predicted - actual) / actual)) : 0;
+	const beat = contested && accuracy > consAcc + 1e-9; // strictly sharper than the crowd
 
 	if (hasBase) {
 		u.streak = dirCorrect ? u.streak + 1 : 0;
 		if (u.streak > u.bestStreak) u.bestStreak = u.streak;
 	}
+	if (beat) u.oracleBeats += 1;
 	const mult = 1 + 0.05 * Math.min(u.streak, 10); // up to 1.5x at a 10-streak
-	const pts = Math.round((PARTICIPATION + (dirCorrect ? DIRECTION : 0) + Math.round(accuracy * ACCURACY_MAX)) * mult);
+	const pts = Math.round(
+		(PARTICIPATION + (dirCorrect ? DIRECTION : 0) + Math.round(accuracy * ACCURACY_MAX) + (beat ? BEAT : 0)) * mult
+	);
 
 	u.points += pts;
 	u.calls += 1;
@@ -153,6 +162,33 @@ function scoreInto(db: DB, e: Epoch, c: Call, actual: number) {
 	u.badges = earned(u);
 }
 
+// Seasons: one active league at a time (PoE's model). When the active league
+// changes, archive the champion to the Hall of Fame and reset the standings.
+function maybeRollover(db: DB, league: string): boolean {
+	if (!db.currentLeague) {
+		db.currentLeague = league;
+		return true;
+	}
+	if (db.currentLeague === league) return false;
+	const ranked = Object.values(db.users ?? {})
+		.filter((u) => u.calls > 0)
+		.sort((a, b) => b.points - a.points);
+	db.hall ??= [];
+	if (ranked.length) {
+		db.hall.unshift({
+			league: db.currentLeague,
+			champion: ranked[0].name,
+			points: ranked[0].points,
+			players: ranked.length,
+			endedAt: Date.now()
+		});
+		db.hall = db.hall.slice(0, 20);
+	}
+	db.users = {};
+	db.currentLeague = league;
+	return true;
+}
+
 // Settle every due epoch we have a price for, scoring its calls. Processed in
 // settlement-time order so per-player streaks accrue chronologically.
 function settleDue(db: DB, priceOf: (cid: string) => number | undefined, now = Date.now()): boolean {
@@ -162,7 +198,10 @@ function settleDue(db: DB, priceOf: (cid: string) => number | undefined, now = D
 		const actual = priceOf(e.currencyApiId);
 		if (actual == null) continue;
 		e.settled = { actual, at: now };
-		for (const c of e.calls) scoreInto(db, e, c, actual);
+		const cp = median(e.calls.map((c) => c.predicted));
+		const consAcc = cp != null && actual > 0 ? Math.max(0, 1 - Math.min(1, Math.abs(cp - actual) / actual)) : 0;
+		const contested = e.calls.length >= 2;
+		for (const c of e.calls) scoreInto(db, e, c, actual, consAcc, contested);
 		changed = true;
 	}
 	return changed;
@@ -173,12 +212,14 @@ export async function getForecast(
 	pid: string | undefined,
 	currencyApiId: string,
 	currencyName: string,
-	price: number
+	price: number,
+	league: string
 ): Promise<Forecast> {
 	const kv = kvOf(platform);
 	const db = await load(kv);
+	const rolled = maybeRollover(db, league);
 	// settle (and score) only this currency's due epochs — it's the only price we have here
-	const changed = settleDue(db, (cid) => (cid === currencyApiId ? price : undefined));
+	const changed = settleDue(db, (cid) => (cid === currencyApiId ? price : undefined)) || rolled;
 
 	// read-only: do NOT create empty epochs here (only addCall creates them)
 	const horizons = {} as Record<Horizon, HorizonState>;
@@ -225,11 +266,13 @@ export async function addCall(
 	currencyApiId: string,
 	horizon: Horizon,
 	predicted: number,
-	base?: number
+	base: number | undefined,
+	league: string
 ): Promise<void> {
 	if (!HORIZONS.includes(horizon)) return;
 	const kv = kvOf(platform);
 	const db = await load(kv);
+	maybeRollover(db, league);
 	const end = epochEnd(horizon);
 	const key = `${currencyApiId}:${horizon}:${end}`;
 	let e = db.epochs.find((x) => x.key === key);
@@ -275,8 +318,9 @@ export async function getLadder(
 ): Promise<Ladder> {
 	const kv = kvOf(platform);
 	const db = await load(kv);
+	const rolled = maybeRollover(db, market.league);
 	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
-	if (settleDue(db, (cid) => pm.get(cid))) await save(kv, db);
+	if (settleDue(db, (cid) => pm.get(cid)) || rolled) await save(kv, db);
 
 	const users = Object.values(db.users ?? {}).filter((u) => u.calls > 0);
 	let entries = users.map((u) => ({ pid: u.pid, row: toRow(u, horizon) }));
@@ -287,7 +331,14 @@ export async function getLadder(
 	const top = entries.slice(0, 100).map((e) => e.row);
 	const youEntry = pid ? entries.find((e) => e.pid === pid) : undefined;
 	const you = pid ? (db.users?.[pid] ?? null) : null;
-	return { updatedAt: Date.now(), league: market.league, top, you, yourRank: youEntry?.row.rank ?? null };
+	return {
+		updatedAt: Date.now(),
+		league: market.league,
+		top,
+		you,
+		yourRank: youEntry?.row.rank ?? null,
+		hall: db.hall ?? []
+	};
 }
 
 export async function getProfile(platform: Plat, market: Market, pid: string | undefined): Promise<Profile> {
