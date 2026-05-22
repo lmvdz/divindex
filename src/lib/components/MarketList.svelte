@@ -4,6 +4,7 @@
 	import { effectiveQuote, QUOTE_SHORT, type Quote } from '$lib/convert';
 	import ItemIcon from '$lib/components/ItemIcon.svelte';
 	import { showTip, moveTip, hideTip } from '$lib/tooltip.svelte';
+	import { watchlist } from '$lib/watchlist.svelte';
 
 	let {
 		currencies,
@@ -20,12 +21,14 @@
 	let q = $state('');
 	let cat = $state('all');
 	let sort = $state<'price' | 'name' | 'change'>('price');
+	let favOnly = $state(false);
 
 	const cats = $derived(['all', ...new Set(currencies.map((c) => c.category))]);
 
 	const filtered = $derived.by(() => {
 		const term = q.trim().toLowerCase();
 		const list = currencies.filter((c) => {
+			if (favOnly && !watchlist.has(c.apiId)) return false;
 			if (cat !== 'all' && c.category !== cat) return false;
 			if (!term) return true;
 			return c.name.toLowerCase().includes(term) || ticker(c.apiId).toLowerCase().includes(term);
@@ -65,6 +68,15 @@
 				<option value={c}>{c === 'all' ? 'All categories' : c}</option>
 			{/each}
 		</select>
+		<button
+			class="fav-filter"
+			class:active={favOnly}
+			onclick={() => (favOnly = !favOnly)}
+			aria-pressed={favOnly}
+			title="Show watchlist only"
+		>
+			{favOnly ? '★' : '☆'} {watchlist.count}
+		</button>
 	</div>
 	<div class="market-head">
 		<button class="mh" class:active={sort === 'name'} onclick={() => (sort = 'name')}>Market</button>

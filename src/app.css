@@ -1554,3 +1554,57 @@ a {
 	font-size: 12px;
 	color: var(--muted);
 }
+
+/* watchlist / favorites */
+.fav-filter {
+	flex-shrink: 0;
+	padding: 0 10px;
+	height: 32px;
+	border: 1px solid var(--border-2);
+	border-radius: var(--radius-sm);
+	background: var(--surface-2);
+	color: var(--muted);
+	font-size: 13px;
+	cursor: pointer;
+	transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+.fav-filter:hover {
+	color: var(--gold-soft);
+}
+.fav-filter.active {
+	color: var(--gold);
+	border-color: var(--gold-deep);
+}
+.star-btn {
+	margin-left: auto;
+	align-self: flex-start;
+	background: none;
+	border: none;
+	color: var(--faint);
+	font-size: 22px;
+	line-height: 1;
+	cursor: pointer;
+	transition: color 0.15s var(--ease), transform 0.1s var(--ease);
+}
+.star-btn:hover {
+	color: var(--gold-soft);
+	transform: scale(1.1);
+}
+.star-btn.on {
+	color: var(--gold);
+}
+.star-cell {
+	background: none;
+	border: none;
+	padding: 0 2px 0 0;
+	color: var(--faint);
+	font-size: 15px;
+	line-height: 1;
+	cursor: pointer;
+}
+.star-cell:hover {
+	color: var(--gold-soft);
+}
+.star-cell.on {
+	color: var(--gold);
+}

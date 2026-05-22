@@ -2,8 +2,10 @@
 	import type { Currency } from '$lib/types';
 	import { fmt, compact, signStr, signClass } from '$lib/format';
 	import ItemIcon from '$lib/components/ItemIcon.svelte';
+	import { watchlist } from '$lib/watchlist.svelte';
 
 	let { currency, unit }: { currency: Currency; unit: string } = $props();
+	const starred = $derived(watchlist.has(currency.apiId));
 </script>
 
 <section class="panel stats" aria-label="Currency details">
@@ -13,6 +15,15 @@
 			<h2>{currency.name}</h2>
 			<p class="muted">in {unit}</p>
 		</div>
+		<button
+			class="star-btn"
+			class:on={starred}
+			onclick={() => watchlist.toggle(currency.apiId)}
+			aria-pressed={starred}
+			title={starred ? 'Remove from watchlist' : 'Add to watchlist'}
+		>
+			{starred ? '★' : '☆'}
+		</button>
 	</header>
 
 	<div class="stats-price">

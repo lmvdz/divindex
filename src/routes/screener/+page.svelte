@@ -12,6 +12,7 @@
 	import ItemIcon from '$lib/components/ItemIcon.svelte';
 	import PriceChart from '$lib/components/PriceChart.svelte';
 	import { showTip, moveTip, hideTip } from '$lib/tooltip.svelte';
+	import { watchlist } from '$lib/watchlist.svelte';
 	import type { Currency } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -30,6 +31,7 @@
 	let dir = $state<1 | -1>(-1);
 	let q = $state('');
 	let cat = $state('all');
+	let favOnly = $state(false);
 	let expandedId = $state<number | null>(null);
 
 	const cats = $derived(['all', ...data.market.categories]);
@@ -37,6 +39,7 @@
 	const rows = $derived.by(() => {
 		const term = q.trim().toLowerCase();
 		const list = market.currencies.filter((c) => {
+			if (favOnly && !watchlist.has(c.apiId)) return false;
 			if (cat !== 'all' && c.category !== cat) return false;
 			if (!term) return true;
 			return c.name.toLowerCase().includes(term) || ticker(c.apiId).toLowerCase().includes(term);
@@ -116,6 +119,15 @@
 				</button>
 			{/each}
 		</div>
+		<button
+			class="fav-filter"
+			class:active={favOnly}
+			onclick={() => (favOnly = !favOnly)}
+			aria-pressed={favOnly}
+			title="Show watchlist only"
+		>
+			{favOnly ? '★' : '☆'} {watchlist.count}
+		</button>
 		<label class="sr-only" for="scr-cat">Category</label>
 		<select id="scr-cat" class="field scr-cat" bind:value={cat}>
 			{#each cats as c (c)}
@@ -187,6 +199,18 @@
 							<td class="num idx">{i + 1}</td>
 							<td>
 								<span class="scr-name">
+									<button
+										class="star-cell"
+										class:on={watchlist.has(c.apiId)}
+										aria-label="Toggle watchlist"
+										aria-pressed={watchlist.has(c.apiId)}
+										onclick={(e) => {
+											e.stopPropagation();
+											watchlist.toggle(c.apiId);
+										}}
+									>
+										{watchlist.has(c.apiId) ? '★' : '☆'}
+									</button>
 									<ItemIcon apiId={c.apiId} icon={c.icon} size={22} chip="sym" />
 									<span class="nm">{c.name}</span>
 								</span>
