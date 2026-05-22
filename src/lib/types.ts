@@ -68,6 +68,55 @@ export interface Forecast {
 	series: Record<Horizon, { you: PredPoint[]; consensus: PredPoint[] }>;
 }
 
+export interface HStat {
+	calls: number;
+	hits: number; // correct-direction calls
+	points: number;
+	accSum: number; // sum of accuracy (avg = accSum/calls)
+}
+
+export interface PlayerStats {
+	pid: string;
+	name: string;
+	points: number;
+	calls: number; // settled, scored calls
+	hits: number; // correct-direction calls
+	accSum: number;
+	bestAcc: number; // best single-call accuracy (0..1)
+	streak: number; // current correct-direction streak
+	bestStreak: number;
+	markets: string[]; // distinct currencies forecasted
+	badges: string[]; // earned badge ids
+	byH: Record<Horizon, HStat>;
+	lastAt: number; // last settlement scored
+}
+
+export interface LadderRow {
+	rank: number;
+	name: string;
+	points: number;
+	calls: number;
+	hits: number;
+	accAvg: number; // 0..1
+	streak: number;
+	bestStreak: number;
+	badges: number; // count of earned badges
+}
+
+export interface Ladder {
+	updatedAt: number;
+	league: string;
+	top: LadderRow[];
+	you: PlayerStats | null;
+	yourRank: number | null;
+}
+
+export interface Profile {
+	you: PlayerStats | null;
+	rank: number | null;
+	league: string;
+}
+
 export interface Economy {
 	marketCap: number;
 	volume: number;

@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { signIn } from '@auth/sveltekit/client';
-	import { fmt } from '$lib/format';
+	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
-	import type { Forecast, Horizon } from '$lib/types';
+	import { RARITY_COLOR, badgeById } from '$lib/badges';
+	import type { Forecast, Horizon, PlayerStats } from '$lib/types';
 
 	let {
 		forecast,
@@ -13,6 +14,8 @@
 		userName,
 		providers,
 		authConfigured,
+		stats,
+		rank,
 		onhorizon,
 		onsubmit
 	}: {
@@ -24,9 +27,16 @@
 		userName: string | null;
 		providers: string[];
 		authConfigured: boolean;
+		stats: PlayerStats | null;
+		rank: number | null;
 		onhorizon: (h: Horizon) => void;
 		onsubmit: (name: string | null, predictedExalt: number) => Promise<{ ok: boolean; error?: string }>;
 	} = $props();
+
+	const myBadges = $derived((stats?.badges ?? []).map((id) => badgeById(id)).filter((b) => b != null));
+	const myAcc = $derived(stats && stats.calls ? stats.accSum / stats.calls : 0);
+	const myDir = $derived(stats && stats.calls ? stats.hits / stats.calls : 0);
+	const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 	const TABS: { id: Horizon; label: string; long: string }[] = [
 		{ id: 'hour', label: '1H', long: 'hour' },
@@ -103,6 +113,28 @@
 			{/each}
 		</div>
 	</header>
+
+	{#if signedIn && stats && stats.calls > 0}
+		<div class="standing-card">
+			<div class="sc-row">
+				<span class="sc-rank">Rank <b class="mono">{rank ? `#${rank}` : '—'}</b></span>
+				<span class="sc-omens"><b class="mono">{compact(stats.points)}</b> Omens</span>
+				<a class="sc-link" href="/ladder">Ladder →</a>
+			</div>
+			<div class="sc-stats">
+				<span>Dir <b class="mono">{pct(myDir)}</b></span>
+				<span>Acc <b class="mono">{pct(myAcc)}</b></span>
+				<span>Streak <b class="mono">{stats.streak}🔥</b></span>
+			</div>
+			{#if myBadges.length}
+				<div class="sc-badges">
+					{#each myBadges.slice(0, 6) as b (b!.id)}
+						<span class="badge sm" style="--rc:{RARITY_COLOR[b!.rarity]}" title={`${b!.name} — ${b!.desc}`}>{b!.name}</span>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
 
 	{#if forecast && cur}
 		<p class="fx-q">Where will <b>{forecast.currencyName}</b> settle next {longLabel}? <em>({unit})</em></p>

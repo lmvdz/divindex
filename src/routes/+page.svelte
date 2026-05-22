@@ -15,7 +15,7 @@
 		type Quote
 	} from '$lib/convert';
 	import { TF_TO_HORIZON } from '$lib/horizons';
-	import type { Forecast, Horizon, Market } from '$lib/types';
+	import type { Forecast, Horizon, Market, Profile } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -84,6 +84,21 @@
 		if (c) loadForecast(c.apiId);
 	});
 
+	// ---- player profile (rank, points, streak, badges) ----
+	let profile = $state<Profile | null>(null);
+	async function loadProfile() {
+		try {
+			const res = await fetch('/api/profile');
+			profile = res.ok ? await res.json() : null;
+		} catch {
+			profile = null;
+		}
+	}
+	$effect(() => {
+		signedIn;
+		loadProfile();
+	});
+
 	async function submitCall(name: string | null, predictedExalt: number) {
 		const c = selectedRaw;
 		if (!c) return { ok: false, error: 'No currency.' };
@@ -101,6 +116,7 @@
 			const next = await res.json();
 			if (!res.ok) return { ok: false, error: next.error ?? 'Failed.' };
 			forecast = next;
+			loadProfile();
 			return { ok: true };
 		} catch {
 			return { ok: false, error: 'Network error.' };
@@ -163,6 +179,8 @@
 					{userName}
 					{providers}
 					{authConfigured}
+					stats={profile?.you ?? null}
+					rank={profile?.rank ?? null}
 					onhorizon={(h) => (activeHorizon = h)}
 					onsubmit={submitCall}
 				/>

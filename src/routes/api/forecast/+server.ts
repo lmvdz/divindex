@@ -57,8 +57,9 @@ export const POST: RequestHandler = async ({ request, cookies, locals, platform 
 		return json({ error: 'Sign in to forecast.' }, { status: 401 });
 	}
 
-	await addCall(platform, pid, name, body.currency, body.horizon, predicted);
 	const market = await getMarket();
 	const c = pick(market, body.currency);
+	// store the current price as the call's baseline so direction can be scored
+	await addCall(platform, pid, name, body.currency, body.horizon, predicted, c.price);
 	return json(await getForecast(platform, pid, c.apiId, c.name, c.price));
 };
