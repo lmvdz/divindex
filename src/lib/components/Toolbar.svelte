@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { signIn, signOut } from '@auth/sveltekit/client';
 	import { timeOf } from '$lib/format';
 	import { QUOTE_SHORT, type Quote } from '$lib/convert';
 
@@ -8,7 +9,10 @@
 		quote,
 		onquote,
 		onrefresh,
-		busy
+		busy,
+		signedIn,
+		userName,
+		authConfigured
 	}: {
 		league: string;
 		fetchedAt: number;
@@ -16,6 +20,9 @@
 		onquote: (q: Quote) => void;
 		onrefresh: () => void;
 		busy: boolean;
+		signedIn: boolean;
+		userName: string | null;
+		authConfigured: boolean;
 	} = $props();
 
 	const QUOTES: Quote[] = ['exalted', 'divine'];
@@ -44,4 +51,10 @@
 	<button class="btn btn-ghost" onclick={onrefresh} disabled={busy} aria-label="Refresh market data">
 		{busy ? 'Refreshing…' : 'Refresh'}
 	</button>
+	{#if signedIn}
+		<span class="auth-chip" title={userName ?? ''}>{userName}</span>
+		<button class="btn btn-ghost" onclick={() => signOut()}>Sign out</button>
+	{:else if authConfigured}
+		<button class="btn btn-primary" onclick={() => signIn()}>Sign in</button>
+	{/if}
 </header>

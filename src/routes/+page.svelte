@@ -43,6 +43,13 @@
 	const fxRate = $derived(eff === 'exalted' ? 1 : divineRate(market));
 	const unit = $derived(QUOTE_LABEL[eff]);
 
+	// ---- auth (from +layout.server.ts) ----
+	const session = $derived(page.data.session as { user?: { name?: string | null } } | null);
+	const signedIn = $derived(!!session?.user);
+	const userName = $derived(session?.user?.name ?? null);
+	const providers = $derived((page.data.providers as string[] | undefined) ?? []);
+	const authConfigured = $derived((page.data.authConfigured as boolean | undefined) ?? false);
+
 	let busy = $state(false);
 	async function refresh() {
 		if (busy) return;
@@ -76,7 +83,7 @@
 		if (c) loadForecast(c.apiId);
 	});
 
-	async function submitCall(name: string, predictedExalt: number) {
+	async function submitCall(name: string | null, predictedExalt: number) {
 		const c = selectedRaw;
 		if (!c) return { ok: false, error: 'No currency.' };
 		try {
@@ -112,6 +119,9 @@
 		onquote={(q) => (quote = q)}
 		onrefresh={refresh}
 		{busy}
+		{signedIn}
+		{userName}
+		{authConfigured}
 	/>
 
 	<div class="term-body">
@@ -145,6 +155,10 @@
 					active={activeHorizon}
 					{unit}
 					{fxRate}
+					{signedIn}
+					{userName}
+					{providers}
+					{authConfigured}
 					onhorizon={(h) => (activeHorizon = h)}
 					onsubmit={submitCall}
 				/>

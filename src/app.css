@@ -943,6 +943,31 @@ a {
 	color: var(--faint);
 	margin: 0;
 }
+.fx-note b {
+	color: var(--muted);
+}
+.fx-signin {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+.fx-signin p {
+	margin: 0 0 2px;
+	font-size: 0.86rem;
+	color: var(--muted);
+}
+.signin-btn {
+	width: 100%;
+}
+.auth-chip {
+	max-width: 130px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font: 500 0.82rem var(--sans);
+	color: var(--gold);
+	padding: 0 4px;
+}
 
 /* ---- screener ---- */
 .scr {
