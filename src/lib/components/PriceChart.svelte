@@ -26,9 +26,15 @@
 		{ id: '1d', label: '1D' },
 		{ id: '1w', label: '1W' }
 	];
+	const EMA_OPTS: { v: number | null; label: string }[] = [
+		{ v: null, label: 'Off' },
+		{ v: 9, label: '9' },
+		{ v: 21, label: '21' },
+		{ v: 50, label: '50' }
+	];
 	let timeframe = $state<Timeframe>('1d');
+	let emaPeriod = $state<number | null>(null);
 	const intraday = $derived(timeframe === '1h' || timeframe === '4h');
-	// 1h is a single price per hour -> line; coarser timeframes aggregate -> candles
 	const kindFor = (tf: Timeframe): 'line' | 'candle' => (tf === '1h' ? 'line' : 'candle');
 	const quoteLabel = $derived(QUOTE_LABEL[effectiveQuote(currency.apiId, quote)]);
 
@@ -41,15 +47,18 @@
 	let legPrice = $state(0);
 	let legChg = $state(0);
 	let legDate = $state('');
+	let emaLast = $state<number | null>(null);
 
 	type ChartApi = import('lightweight-charts').IChartApi;
 	type AnySeries =
 		| import('lightweight-charts').ISeriesApi<'Candlestick'>
 		| import('lightweight-charts').ISeriesApi<'Line'>;
+	type LineApi = import('lightweight-charts').ISeriesApi<'Line'>;
 	type PriceLine = import('lightweight-charts').IPriceLine;
 	let lcRef: typeof import('lightweight-charts') | undefined;
 	let chart: ChartApi | undefined;
 	let series: AnySeries | undefined;
+	let emaSeries: LineApi | undefined;
 	let seriesKind = $state<'line' | 'candle'>('candle');
 	let lines: PriceLine[] = [];
 
@@ -83,15 +92,18 @@
 
 	function setupSeries(kind: 'line' | 'candle') {
 		if (!chart || !lcRef) return;
-		if (series) {
-			try {
-				chart.removeSeries(series);
-			} catch {
-				/* gone */
+		for (const s of [series, emaSeries]) {
+			if (s) {
+				try {
+					chart.removeSeries(s);
+				} catch {
+					/* gone */
+				}
 			}
-			series = undefined;
-			lines = [];
 		}
+		series = undefined;
+		emaSeries = undefined;
+		lines = [];
 		series =
 			kind === 'line'
 				? chart.addSeries(lcRef.LineSeries, {
@@ -107,18 +119,57 @@
 						wickDownColor: '#e57170',
 						borderVisible: false
 					});
+		// EMA overlay sits on top so it stays visible over the candles
+		emaSeries = chart.addSeries(lcRef.LineSeries, {
+			color: '#8aa9c9',
+			lineWidth: 1,
+			priceLineVisible: false,
+			lastValueVisible: false,
+			crosshairMarkerVisible: false
+		});
 		seriesKind = kind;
 	}
 
 	function paint() {
 		if (!ready || !series) return;
-		const data =
-			seriesKind === 'line'
-				? candles.map((c) => ({ time: c.time, value: c.close }))
-				: candles;
+		const data = seriesKind === 'line' ? candles.map((c) => ({ time: c.time, value: c.close })) : candles;
 		series.setData(data as never);
 		chart?.timeScale().fitContent();
 		resetLegend();
+	}
+
+	function emaData(cs: Candle[], period: number): { time: number; value: number }[] {
+		const k = 2 / (period + 1);
+		const out: { time: number; value: number }[] = [];
+		let prev = 0;
+		let sum = 0;
+		for (let i = 0; i < cs.length; i++) {
+			const close = cs[i].close;
+			if (i < period - 1) {
+				sum += close;
+				continue;
+			}
+			if (i === period - 1) {
+				sum += close;
+				prev = sum / period;
+			} else {
+				prev = close * k + prev * (1 - k);
+			}
+			out.push({ time: cs[i].time, value: prev });
+		}
+		return out;
+	}
+
+	function drawEMA() {
+		if (!ready || !emaSeries) return;
+		if (emaPeriod == null || candles.length < emaPeriod) {
+			emaSeries.setData([]);
+			emaLast = null;
+			return;
+		}
+		const data = emaData(candles, emaPeriod);
+		emaSeries.setData(data as never);
+		emaLast = data.length ? data[data.length - 1].value : null;
 	}
 
 	function drawForecast() {
@@ -194,6 +245,7 @@
 		}
 		chart?.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } });
 		paint();
+		drawEMA();
 		drawForecast();
 	}
 
@@ -236,6 +288,7 @@
 				});
 				ready = true;
 				paint();
+				drawEMA();
 				drawForecast();
 			} catch {
 				failed = true;
@@ -254,6 +307,10 @@
 		loadHistory(currency, quote, timeframe);
 	});
 	$effect(() => {
+		emaPeriod;
+		drawEMA();
+	});
+	$effect(() => {
 		forecast;
 		activeHorizon;
 		fxRate;
@@ -267,11 +324,20 @@
 		<span class="cl-name">{currency.name}</span>
 		<span class="cl-price">{fmt(legPrice || currency.price / fxRate)} <em>{quoteLabel}</em></span>
 		<span class="cl-chg {signClass(legChg)}">{signStr(legChg)}</span>
+		{#if emaPeriod != null && emaLast != null}
+			<span class="cl-ema">EMA{emaPeriod} {fmt(emaLast)}</span>
+		{/if}
 		{#if loading}
 			<span class="cl-date">loading…</span>
 		{:else if legDate}
 			<span class="cl-date">{legDate}</span>
 		{/if}
+		<div class="tf-tabs" role="group" aria-label="EMA">
+			<span class="ctl-label">EMA</span>
+			{#each EMA_OPTS as o (o.label)}
+				<button class:active={emaPeriod === o.v} onclick={() => (emaPeriod = o.v)}>{o.label}</button>
+			{/each}
+		</div>
 		<div class="tf-tabs" role="group" aria-label="Timeframe">
 			{#each TFS as t (t.id)}
 				<button class:active={timeframe === t.id} onclick={() => (timeframe = t.id)}>{t.label}</button>

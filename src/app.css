@@ -425,6 +425,18 @@ a {
 	outline: none;
 	box-shadow: var(--ring);
 }
+.ctl-label {
+	font-size: 0.62rem;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	color: var(--faint);
+	padding: 0 4px 0 2px;
+	align-self: center;
+}
+.cl-ema {
+	font: 500 0.82rem var(--mono);
+	color: #8aa9c9;
+}
 .chart-canvas {
 	flex: 1;
 	min-height: 0;
