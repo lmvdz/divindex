@@ -3,6 +3,7 @@
 	import type { Candle, Currency, Forecast, Horizon, Timeframe } from '$lib/types';
 	import { fmt, compact, signStr, signClass } from '$lib/format';
 	import { effectiveQuote, QUOTE_LABEL, type Quote } from '$lib/convert';
+	import { HORIZON_COLORS } from '$lib/horizons';
 	import ItemIcon from '$lib/components/ItemIcon.svelte';
 
 	let {
@@ -11,14 +12,14 @@
 		divineId,
 		fxRate,
 		forecast,
-		activeHorizon
+		ontimeframe
 	}: {
 		currency: Currency;
 		quote: Quote;
 		divineId: number;
 		fxRate: number;
 		forecast: Forecast | null;
-		activeHorizon: Horizon;
+		ontimeframe?: (tf: Timeframe) => void;
 	} = $props();
 
 	const TFS: { id: Timeframe; label: string }[] = [
@@ -64,8 +65,6 @@
 	let volSeries: import('lightweight-charts').ISeriesApi<'Histogram'> | undefined;
 	let seriesKind = $state<'line' | 'candle'>('candle');
 	let lines: PriceLine[] = [];
-
-	const HLABEL: Record<Horizon, string> = { hour: '1H', day: '1D', week: '1W' };
 
 	function fmtTime(sec: number): string {
 		const iso = new Date(sec * 1000).toISOString();
@@ -196,32 +195,33 @@
 		lines = [];
 		if (!forecast) return;
 		for (const h of ['hour', 'day', 'week'] as Horizon[]) {
-			const c = forecast.horizons[h].consensus;
-			if (c != null) {
+			const col = HORIZON_COLORS[h];
+			const cons = forecast.horizons[h].consensus;
+			if (cons != null) {
 				lines.push(
 					series.createPriceLine({
-						price: c / fxRate,
-						color: '#c2913f',
+						price: cons / fxRate,
+						color: col.base,
 						lineWidth: 1,
 						lineStyle: lcRef.LineStyle.Dashed,
 						axisLabelVisible: true,
-						title: `${HLABEL[h]} consensus`
+						title: `${col.label} cons`
 					})
 				);
 			}
-		}
-		const yc = forecast.horizons[activeHorizon].yourCall;
-		if (yc != null) {
-			lines.push(
-				series.createPriceLine({
-					price: yc / fxRate,
-					color: '#ecca8e',
-					lineWidth: 2,
-					lineStyle: lcRef.LineStyle.Solid,
-					axisLabelVisible: true,
-					title: `${HLABEL[activeHorizon]} your call`
-				})
-			);
+			const yc = forecast.horizons[h].yourCall;
+			if (yc != null) {
+				lines.push(
+					series.createPriceLine({
+						price: yc / fxRate,
+						color: col.you,
+						lineWidth: 2,
+						lineStyle: lcRef.LineStyle.Solid,
+						axisLabelVisible: true,
+						title: `${col.label} you`
+					})
+				);
+			}
 		}
 	}
 
@@ -339,7 +339,6 @@
 	});
 	$effect(() => {
 		forecast;
-		activeHorizon;
 		fxRate;
 		drawForecast();
 	});
@@ -370,7 +369,13 @@
 		</div>
 		<div class="tf-tabs" role="group" aria-label="Timeframe">
 			{#each TFS as t (t.id)}
-				<button class:active={timeframe === t.id} onclick={() => (timeframe = t.id)}>{t.label}</button>
+				<button
+					class:active={timeframe === t.id}
+					onclick={() => {
+						timeframe = t.id;
+						ontimeframe?.(t.id);
+					}}>{t.label}</button
+				>
 			{/each}
 		</div>
 	</div>

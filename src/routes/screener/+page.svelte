@@ -218,7 +218,6 @@
 											{divineId}
 											fxRate={fxFor(raw.apiId)}
 											forecast={null}
-											activeHorizon="day"
 										/>
 									</div>
 								</td>

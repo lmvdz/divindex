@@ -958,8 +958,15 @@ a {
 	cursor: pointer;
 }
 .fx-tabs button.active {
-	background: rgba(224, 180, 101, 0.14);
-	color: var(--gold);
+	background: var(--surface-3);
+}
+.hdot {
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	margin-right: 5px;
+	vertical-align: middle;
 }
 .fx-tabs button:focus-visible {
 	outline: none;

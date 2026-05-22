@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { signIn } from '@auth/sveltekit/client';
 	import { fmt } from '$lib/format';
+	import { HORIZON_COLORS } from '$lib/horizons';
 	import type { Forecast, Horizon } from '$lib/types';
 
 	let {
@@ -94,8 +95,11 @@
 					role="tab"
 					class:active={active === t.id}
 					aria-selected={active === t.id}
-					onclick={() => onhorizon(t.id)}>{t.label}</button
+					style={active === t.id ? `color:${HORIZON_COLORS[t.id].base}` : ''}
+					onclick={() => onhorizon(t.id)}
 				>
+					<span class="hdot" style="background:{HORIZON_COLORS[t.id].base}"></span>{t.label}
+				</button>
 			{/each}
 		</div>
 	</header>
@@ -107,11 +111,15 @@
 			<div><span class="fc-label">Settles in</span><b class="mono">{fmtCd(cur.end - now)}</b></div>
 			<div>
 				<span class="fc-label">Consensus</span>
-				<b class="mono">{cur.consensus != null ? fmt(cur.consensus / fxRate) : '—'}</b>
+				<b class="mono" style={cur.consensus != null ? `color:${HORIZON_COLORS[active].base}` : ''}>
+					{cur.consensus != null ? fmt(cur.consensus / fxRate) : '—'}
+				</b>
 			</div>
 			<div>
 				<span class="fc-label">Your call</span>
-				<b class="mono">{cur.yourCall != null ? fmt(cur.yourCall / fxRate) : '—'}</b>
+				<b class="mono" style={cur.yourCall != null ? `color:${HORIZON_COLORS[active].you}` : ''}>
+					{cur.yourCall != null ? fmt(cur.yourCall / fxRate) : '—'}
+				</b>
 			</div>
 			<div><span class="fc-label">Calls</span><b class="mono">{cur.calls}</b></div>
 		</div>

@@ -14,6 +14,7 @@
 		QUOTE_LABEL,
 		type Quote
 	} from '$lib/convert';
+	import { TF_TO_HORIZON } from '$lib/horizons';
 	import type { Forecast, Horizon, Market } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -140,7 +141,10 @@
 					{divineId}
 					{fxRate}
 					{forecast}
-					{activeHorizon}
+					ontimeframe={(tf) => {
+						const h = TF_TO_HORIZON[tf];
+						if (h) activeHorizon = h;
+					}}
 				/>
 			{:else}
 				<p class="term-empty">No market data available.</p>
