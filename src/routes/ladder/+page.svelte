@@ -3,6 +3,7 @@
 	import { compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
 	import { BADGES, RARITY_COLOR, badgeById } from '$lib/badges';
+	import { CHALLENGES, completedCount, divinerTitle, isDone, nextTier } from '$lib/challenges';
 	import { ladderUrl, shareOrCopy, tweetIntent } from '$lib/share';
 	import type { Horizon, Ladder } from '$lib/types';
 	import type { PageData } from './$types';
@@ -53,6 +54,9 @@
 		(ladder.you?.badges ?? []).map((id) => badgeById(id)).filter((b) => b != null)
 	);
 	const youAcc = $derived(ladder.you && ladder.you.calls ? ladder.you.accSum / ladder.you.calls : 0);
+	const chDone = $derived(completedCount(ladder.you));
+	const chTitle = $derived(divinerTitle(ladder.you));
+	const chNext = $derived(nextTier(chDone));
 </script>
 
 <svelte:head>
@@ -168,6 +172,25 @@
 				</tbody>
 			</table>
 		</div>
+
+		<section class="challenges">
+			<h2 class="eyebrow">Challenges — {chDone}/{CHALLENGES.length}{#if chTitle} · <span class="ch-title">{chTitle}</span>{/if}</h2>
+			<p class="muted ch-sub">
+				{#if chNext}{chNext.count - chDone} more for “{chNext.title}”{:else}All challenges complete — Grand Diviner!{/if}
+			</p>
+			<div class="ch-grid">
+				{#each CHALLENGES as c (c.id)}
+					{@const p = ladder.you ? c.progress(ladder.you) : 0}
+					{@const ok = ladder.you ? isDone(ladder.you, c) : false}
+					<div class="ch-card" class:done={ok}>
+						<div class="ch-head"><b>{c.name}</b>{#if ok}<span class="ch-check">✓</span>{/if}</div>
+						<span class="ch-desc">{c.desc}</span>
+						<div class="ch-bar"><span style="width:{Math.min(100, (p / c.goal) * 100)}%"></span></div>
+						<span class="ch-prog">{Math.min(Math.round(p), c.goal)} / {c.goal}</span>
+					</div>
+				{/each}
+			</div>
+		</section>
 
 		{#if ladder.hall.length}
 			<section class="hall">

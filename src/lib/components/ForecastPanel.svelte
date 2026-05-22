@@ -3,6 +3,7 @@
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
 	import { RARITY_COLOR, badgeById } from '$lib/badges';
+	import { divinerTitle } from '$lib/challenges';
 	import { ladderUrl, shareOrCopy, tweetIntent } from '$lib/share';
 	import type { Calibration, Forecast, Horizon, PlayerStats } from '$lib/types';
 
@@ -39,6 +40,7 @@
 	const crowd = $derived(calib ? calib.byH[active] : null);
 
 	const myBadges = $derived((stats?.badges ?? []).map((id) => badgeById(id)).filter((b) => b != null));
+	const myTitle = $derived(divinerTitle(stats));
 	const myAcc = $derived(stats && stats.calls ? stats.accSum / stats.calls : 0);
 	const myDir = $derived(stats && stats.calls ? stats.hits / stats.calls : 0);
 	const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -138,6 +140,7 @@
 				<span class="sc-omens"><b class="mono">{compact(stats.points)}</b> Omens</span>
 				<a class="sc-link" href="/ladder">Ladder →</a>
 			</div>
+			{#if myTitle}<div class="sc-title">{myTitle}</div>{/if}
 			<div class="sc-share">
 				<button class="share-btn" onclick={doShare}>↗ Share</button>
 				<a class="share-btn x" href={tweetIntent(brag, ladderUrl())} target="_blank" rel="noopener">Post on X</a>
