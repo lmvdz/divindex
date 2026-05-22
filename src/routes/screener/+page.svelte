@@ -130,7 +130,7 @@
 					{#each rows as c, i (c.id)}
 						<tr
 							onmouseenter={(e) =>
-								showTip(c, e.clientX, e.clientY, QUOTE_LABEL[effectiveQuote(c.apiId, quote)])}
+								showTip(c, e.clientX, e.clientY, QUOTE_SHORT[effectiveQuote(c.apiId, quote)])}
 							onmousemove={(e) => moveTip(e.clientX, e.clientY)}
 							onmouseleave={hideTip}
 						>

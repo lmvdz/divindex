@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Currency } from '$lib/types';
 	import { fmt, signStr, signClass, ticker } from '$lib/format';
-	import { effectiveQuote, QUOTE_LABEL, QUOTE_SHORT, type Quote } from '$lib/convert';
+	import { effectiveQuote, QUOTE_SHORT, type Quote } from '$lib/convert';
 	import ItemIcon from '$lib/components/ItemIcon.svelte';
 	import { showTip, moveTip, hideTip } from '$lib/tooltip.svelte';
 
@@ -81,7 +81,7 @@
 					aria-selected={c.id === selectedId}
 					onclick={() => onselect(c.id)}
 					onmouseenter={(e) =>
-						showTip(c, e.clientX, e.clientY, QUOTE_LABEL[effectiveQuote(c.apiId, quote)])}
+						showTip(c, e.clientX, e.clientY, QUOTE_SHORT[effectiveQuote(c.apiId, quote)])}
 					onmousemove={(e) => moveTip(e.clientX, e.clientY)}
 					onmouseleave={hideTip}
 				>
