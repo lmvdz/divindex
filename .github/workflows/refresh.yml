@@ -1,0 +1,21 @@
+name: Hourly refresh
+
+on:
+  schedule:
+    - cron: '5 * * * *' # 5 min past every hour, after poe2scout's hourly update
+  workflow_dispatch: {}
+
+concurrency:
+  group: hourly-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Warm caches + settle forecasts
+        run: |
+          resp=$(curl -fsS "https://divindex.com/api/cron/refresh?token=${{ secrets.DIGEST_TOKEN }}")
+          echo "$resp"
+          echo "$resp" | grep -q '"ok":true' || { echo "::error::refresh failed"; exit 1; }
