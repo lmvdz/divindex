@@ -53,7 +53,7 @@ export function authConfigured(): boolean {
 
 // Build config per-request: on Cloudflare, $env/dynamic/private is only
 // populated at request time, not at module load.
-export const { handle, signIn, signOut } = SvelteKitAuth(() => {
+export const { handle, signIn, signOut } = SvelteKitAuth(async (): Promise<SvelteKitAuthConfig> => {
 	const providers: SvelteKitAuthConfig['providers'] = [];
 	if (env.AUTH_DISCORD_ID) providers.push(Discord);
 	if (env.AUTH_POE_ID) providers.push(poeProvider());
