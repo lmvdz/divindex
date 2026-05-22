@@ -45,9 +45,26 @@ interface RawPoint {
 
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
 
-async function getJson(url: string): Promise<unknown> {
+// Persistent cross-isolate cache via the Cloudflare Cache API (colo-wide,
+// shared across all Worker isolates), layered under the in-memory L1 caches.
+// We key by a synthetic same-zone URL so caches.default accepts the external
+// response. Falls back to a plain fetch in dev (where `caches` is undefined).
+async function getJson(url: string, ttlSec = 600): Promise<unknown> {
+	const cache = (globalThis as unknown as { caches?: { default: Cache } }).caches?.default;
+	const key = cache ? new Request(`https://divindex.com/__poe2cache?u=${encodeURIComponent(url)}`) : null;
+	if (cache && key) {
+		const hit = await cache.match(key);
+		if (hit) return hit.json();
+	}
 	const res = await fetch(url, { headers: { 'User-Agent': UA, accept: 'application/json' } });
 	if (!res.ok) throw new Error(`poe2scout ${res.status} ${url}`);
+	if (cache && key) {
+		const store = new Response(res.clone().body, {
+			status: 200,
+			headers: { 'content-type': 'application/json', 'cache-control': `public, max-age=${ttlSec}` }
+		});
+		await cache.put(key, store);
+	}
 	return res.json();
 }
 
