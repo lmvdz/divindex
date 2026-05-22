@@ -35,7 +35,13 @@ const TTL = 10 * 60 * 1000;
 
 let leagueCache: { value: string; at: number } | null = null;
 const marketCache = new Map<string, { data: Market; at: number }>();
-const historyCache = new Map<string, { data: History; at: number }>();
+const rawCache = new Map<string, { pts: RawPoint[]; at: number }>();
+
+interface RawPoint {
+	ms: number;
+	price: number;
+	q: number;
+}
 
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
 
@@ -232,7 +238,8 @@ function fallbackMarket(): Market {
 	};
 }
 
-const TF_LOGCOUNT: Record<Timeframe, number> = { '1h': 720, '4h': 1000, '1d': 2000, '1w': 2000 };
+// Pull the full league history (poe2scout returns min(LogCount, available)).
+const HISTORY_LOGCOUNT = 5000;
 
 function bucketStart(ms: number, tf: Timeframe): number {
 	const sec = Math.floor(ms / 1000);
@@ -245,29 +252,37 @@ function bucketStart(ms: number, tf: Timeframe): number {
 	return Math.floor(u.getTime() / 1000);
 }
 
-// poe2scout serves hourly logs; bucket them into OHLC candles at the timeframe.
+// Fetch the full raw hourly history once per item (cached); every timeframe
+// buckets from it, so we never refetch per timeframe.
+async function getRaw(itemId: number, lg: string): Promise<RawPoint[]> {
+	const key = `${lg}:${itemId}`;
+	const cached = rawCache.get(key);
+	if (cached && Date.now() - cached.at < TTL) return cached.pts;
+
+	const enc = encodeURIComponent(lg);
+	const res = (await getJson(
+		`${BASE}/${REALM}/Leagues/${enc}/Items/${itemId}/History?LogCount=${HISTORY_LOGCOUNT}`
+	)) as { PriceHistory?: RawLog[] };
+
+	const pts: RawPoint[] = (res.PriceHistory ?? [])
+		.filter((p) => typeof p?.Price === 'number')
+		.map((p) => ({ ms: new Date(`${p.Time}Z`).getTime(), price: p.Price, q: p.Quantity ?? 0 }))
+		.filter((p) => Number.isFinite(p.ms))
+		.sort((a, b) => a.ms - b.ms);
+
+	if (pts.length) rawCache.set(key, { pts, at: Date.now() });
+	return pts;
+}
+
+// Bucket the full history into OHLC candles at the requested timeframe.
 export async function getHistory(
 	itemId: number,
 	tf: Timeframe = '1d',
 	league?: string
 ): Promise<History> {
 	const lg = league ?? (await getCurrentLeague());
-	const key = `${lg}:${itemId}:${tf}`;
-	const cached = historyCache.get(key);
-	if (cached && Date.now() - cached.at < TTL) return cached.data;
-
 	try {
-		const enc = encodeURIComponent(lg);
-		const res = (await getJson(
-			`${BASE}/${REALM}/Leagues/${enc}/Items/${itemId}/History?LogCount=${TF_LOGCOUNT[tf]}`
-		)) as { PriceHistory?: RawLog[] };
-
-		const pts = (res.PriceHistory ?? [])
-			.filter((p) => typeof p?.Price === 'number')
-			.map((p) => ({ ms: new Date(`${p.Time}Z`).getTime(), price: p.Price, q: p.Quantity ?? 0 }))
-			.filter((p) => Number.isFinite(p.ms))
-			.sort((a, b) => a.ms - b.ms);
-
+		const pts = await getRaw(itemId, lg);
 		const buckets = new Map<number, { o: number; h: number; l: number; c: number; vol: number }>();
 		for (const p of pts) {
 			const t = bucketStart(p.ms, tf);
@@ -290,11 +305,8 @@ export async function getHistory(
 				close: round(v.c),
 				volume: Math.round(v.vol)
 			}));
-
-		const data: History = { id: itemId, tf, candles };
-		if (candles.length) historyCache.set(key, { data, at: Date.now() });
-		return data;
+		return { id: itemId, tf, candles };
 	} catch {
-		return cached?.data ?? { id: itemId, tf, candles: [] };
+		return { id: itemId, tf, candles: [] };
 	}
 }
