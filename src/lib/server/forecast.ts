@@ -42,17 +42,20 @@ function save(db: DB) {
 	writeFileSync(FILE, JSON.stringify(db));
 }
 
+// Settlement target = end of the *next full* epoch, never the in-progress one.
+// The current period is already partly known (you could watch it near the close),
+// so we skip it: forecasts always resolve a period that hasn't started yet.
 function epochEnd(h: Horizon, now = Date.now()): number {
 	const d = new Date(now);
 	if (h === 'hour') {
-		return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours() + 1);
+		return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours() + 2);
 	}
 	if (h === 'day') {
-		return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+		return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 2);
 	}
 	const base = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 	const day = base.getUTCDay();
-	base.setUTCDate(base.getUTCDate() + (day === 0 ? 7 : 7 - day));
+	base.setUTCDate(base.getUTCDate() + (day === 0 ? 7 : 7 - day) + 7); // Sunday after next
 	return base.getTime();
 }
 
