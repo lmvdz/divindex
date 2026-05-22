@@ -1,9 +1,16 @@
 // Lightweight sharing — Web Share API with a clipboard fallback, plus an
 // X/Twitter intent link. No infra, works everywhere.
 
+function origin(): string {
+	return typeof location !== 'undefined' ? location.origin : 'https://divindex.com';
+}
+
 export function ladderUrl(): string {
-	if (typeof location !== 'undefined') return `${location.origin}/ladder`;
-	return 'https://divindex.com/ladder';
+	return `${origin()}/ladder`;
+}
+
+export function profileUrl(handle: string): string {
+	return `${origin()}/u/${handle}`;
 }
 
 export function tweetIntent(text: string, url: string): string {

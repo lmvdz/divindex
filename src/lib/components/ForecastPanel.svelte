@@ -4,7 +4,8 @@
 	import { HORIZON_COLORS } from '$lib/horizons';
 	import { RARITY_COLOR, badgeById } from '$lib/badges';
 	import { divinerTitle } from '$lib/challenges';
-	import { ladderUrl, shareOrCopy, tweetIntent } from '$lib/share';
+	import { handleOf } from '$lib/handle';
+	import { profileUrl, shareOrCopy, tweetIntent } from '$lib/share';
 	import type { Calibration, Forecast, Horizon, PlayerStats } from '$lib/types';
 
 	let {
@@ -46,13 +47,14 @@
 	const pct = (x: number) => `${Math.round(x * 100)}%`;
 
 	let shareMsg = $state('');
+	const myUrl = $derived(stats ? profileUrl(handleOf(stats.pid)) : '');
 	const brag = $derived(
 		stats
 			? `I'm ${rank ? `#${rank}` : 'on the board'} on the Divindex Ladder — ${pct(myDir)} direction, ${pct(myAcc)} accuracy forecasting the PoE2 economy 🔮`
 			: ''
 	);
 	async function doShare() {
-		const r = await shareOrCopy(brag, ladderUrl());
+		const r = await shareOrCopy(brag, myUrl);
 		shareMsg = r === 'copied' ? 'Link copied!' : r === 'failed' ? 'Could not share.' : '';
 		if (shareMsg) setTimeout(() => (shareMsg = ''), 2000);
 	}
@@ -143,7 +145,7 @@
 			{#if myTitle}<div class="sc-title">{myTitle}</div>{/if}
 			<div class="sc-share">
 				<button class="share-btn" onclick={doShare}>↗ Share</button>
-				<a class="share-btn x" href={tweetIntent(brag, ladderUrl())} target="_blank" rel="noopener">Post on X</a>
+				<a class="share-btn x" href={tweetIntent(brag, myUrl)} target="_blank" rel="noopener">Post on X</a>
 				{#if shareMsg}<span class="share-msg">{shareMsg}</span>{/if}
 			</div>
 			<div class="sc-stats">

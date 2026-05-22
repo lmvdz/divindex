@@ -14,6 +14,7 @@ import type {
 	Profile
 } from '$lib/types';
 import { earned } from '$lib/badges';
+import { handleOf } from '$lib/handle';
 
 // Cloudflare Workers have no filesystem, so the forecast store lives in KV
 // (binding FORECAST_KV) when available, with an in-memory fallback for local
@@ -344,6 +345,22 @@ export async function getLadder(
 export async function getProfile(platform: Plat, market: Market, pid: string | undefined): Promise<Profile> {
 	const ladder = await getLadder(platform, market, pid);
 	return { you: ladder.you, rank: ladder.yourRank, league: ladder.league };
+}
+
+// Public lookup by shareable handle (hash of pid), with the player's rank.
+export async function getPlayerByHandle(platform: Plat, market: Market, handle: string): Promise<Profile> {
+	const kv = kvOf(platform);
+	const db = await load(kv);
+	const rolled = maybeRollover(db, market.league);
+	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
+	if (settleDue(db, (cid) => pm.get(cid)) || rolled) await save(kv, db);
+
+	const ranked = Object.values(db.users ?? {})
+		.filter((u) => u.calls > 0)
+		.sort((a, b) => b.points - a.points || b.accSum / (b.calls || 1) - a.accSum / (a.calls || 1));
+	const idx = ranked.findIndex((u) => handleOf(u.pid) === handle);
+	if (idx === -1) return { you: null, rank: null, league: market.league };
+	return { you: ranked[idx], rank: idx + 1, league: market.league };
 }
 
 // ---- crowd calibration: is the consensus actually predictive? ---------------
