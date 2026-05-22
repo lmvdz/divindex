@@ -43,9 +43,14 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 
 	const market = await getMarket();
 	const ladder = await getLadder(platform, market, undefined);
-	const movers = market.currencies.filter((c) => c.volume > 0).sort((a, b) => b.change1dPct - a.change1dPct);
-	const gainers = movers.slice(0, 5);
-	const losers = movers.slice(-5).reverse();
+	// rank movers among the most-liquid currencies only, so thin-market /
+	// league-start noise (±thousands of %) doesn't dominate the digest
+	const byChange = [...market.currencies]
+		.sort((a, b) => b.volume - a.volume)
+		.slice(0, 60)
+		.sort((a, b) => b.change1dPct - a.change1dPct);
+	const gainers = byChange.slice(0, 5);
+	const losers = byChange.slice(-5).reverse();
 	const leaders = ladder.top.slice(0, 5).map((r, i) => `**${i + 1}.** ${r.name} — ${Math.round(r.points)} Omens`);
 	const payload = buildPayload(market, gainers, losers, leaders);
 
