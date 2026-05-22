@@ -28,6 +28,8 @@
 	];
 	let timeframe = $state<Timeframe>('1d');
 	const intraday = $derived(timeframe === '1h' || timeframe === '4h');
+	// 1h is a single price per hour -> line; coarser timeframes aggregate -> candles
+	const kindFor = (tf: Timeframe): 'line' | 'candle' => (tf === '1h' ? 'line' : 'candle');
 	const quoteLabel = $derived(QUOTE_LABEL[effectiveQuote(currency.apiId, quote)]);
 
 	let el = $state<HTMLDivElement>();
@@ -41,12 +43,15 @@
 	let legDate = $state('');
 
 	type ChartApi = import('lightweight-charts').IChartApi;
-	type CandleApi = import('lightweight-charts').ISeriesApi<'Candlestick'>;
+	type AnySeries =
+		| import('lightweight-charts').ISeriesApi<'Candlestick'>
+		| import('lightweight-charts').ISeriesApi<'Line'>;
 	type PriceLine = import('lightweight-charts').IPriceLine;
+	let lcRef: typeof import('lightweight-charts') | undefined;
 	let chart: ChartApi | undefined;
-	let series: CandleApi | undefined;
+	let series: AnySeries | undefined;
+	let seriesKind = $state<'line' | 'candle'>('candle');
 	let lines: PriceLine[] = [];
-	let LSEnum: typeof import('lightweight-charts').LineStyle | undefined;
 
 	const HLABEL: Record<Horizon, string> = { hour: '1H', day: '1D', week: '1W' };
 
@@ -76,17 +81,48 @@
 		});
 	}
 
-	function paint() {
-		if (ready && series) {
-			// lightweight-charts wants Time; numeric UTCTimestamp is valid
-			series.setData(candles as never);
-			chart?.timeScale().fitContent();
-			resetLegend();
+	function setupSeries(kind: 'line' | 'candle') {
+		if (!chart || !lcRef) return;
+		if (series) {
+			try {
+				chart.removeSeries(series);
+			} catch {
+				/* gone */
+			}
+			series = undefined;
+			lines = [];
 		}
+		series =
+			kind === 'line'
+				? chart.addSeries(lcRef.LineSeries, {
+						color: '#e0b465',
+						lineWidth: 2,
+						priceLineVisible: false,
+						lastValueVisible: true
+					})
+				: chart.addSeries(lcRef.CandlestickSeries, {
+						upColor: '#66cf8a',
+						downColor: '#e57170',
+						wickUpColor: '#66cf8a',
+						wickDownColor: '#e57170',
+						borderVisible: false
+					});
+		seriesKind = kind;
+	}
+
+	function paint() {
+		if (!ready || !series) return;
+		const data =
+			seriesKind === 'line'
+				? candles.map((c) => ({ time: c.time, value: c.close }))
+				: candles;
+		series.setData(data as never);
+		chart?.timeScale().fitContent();
+		resetLegend();
 	}
 
 	function drawForecast() {
-		if (!ready || !series || !LSEnum) return;
+		if (!ready || !series || !lcRef) return;
 		for (const l of lines) series.removePriceLine(l);
 		lines = [];
 		if (!forecast) return;
@@ -98,7 +134,7 @@
 						price: c / fxRate,
 						color: '#c2913f',
 						lineWidth: 1,
-						lineStyle: LSEnum.Dashed,
+						lineStyle: lcRef.LineStyle.Dashed,
 						axisLabelVisible: true,
 						title: `${HLABEL[h]} consensus`
 					})
@@ -112,7 +148,7 @@
 					price: yc / fxRate,
 					color: '#ecca8e',
 					lineWidth: 2,
-					lineStyle: LSEnum.Solid,
+					lineStyle: lcRef.LineStyle.Solid,
 					axisLabelVisible: true,
 					title: `${HLABEL[activeHorizon]} your call`
 				})
@@ -131,6 +167,8 @@
 	}
 
 	async function loadHistory(c: Currency, q: Quote, tf: Timeframe) {
+		const kind = kindFor(tf);
+		if (ready && seriesKind !== kind) setupSeries(kind);
 		loading = true;
 		try {
 			let cs = await loadCandles(c.id, tf);
@@ -162,13 +200,12 @@
 	onMount(() => {
 		(async () => {
 			try {
-				const lc = await import('lightweight-charts');
+				lcRef = await import('lightweight-charts');
 				if (!el) return;
-				LSEnum = lc.LineStyle;
-				chart = lc.createChart(el, {
+				chart = lcRef.createChart(el, {
 					autoSize: true,
 					layout: {
-						background: { type: lc.ColorType.Solid, color: 'transparent' },
+						background: { type: lcRef.ColorType.Solid, color: 'transparent' },
 						textColor: '#98a1b6',
 						fontFamily: 'Geist Mono, ui-monospace, monospace',
 						attributionLogo: false
@@ -180,24 +217,18 @@
 					rightPriceScale: { borderColor: '#232838' },
 					timeScale: { borderColor: '#232838', timeVisible: intraday, secondsVisible: false },
 					crosshair: {
-						mode: lc.CrosshairMode.Normal,
+						mode: lcRef.CrosshairMode.Normal,
 						vertLine: { color: '#2d3346', labelBackgroundColor: '#1b2030' },
 						horzLine: { color: '#2d3346', labelBackgroundColor: '#1b2030' }
 					}
 				});
-				series = chart.addSeries(lc.CandlestickSeries, {
-					upColor: '#66cf8a',
-					downColor: '#e57170',
-					wickUpColor: '#66cf8a',
-					wickDownColor: '#e57170',
-					borderVisible: false
-				});
+				setupSeries(kindFor(timeframe));
 				chart.subscribeCrosshairMove((param) => {
-					const pt = series
-						? (param.seriesData.get(series) as { close: number } | undefined)
-						: undefined;
-					if (pt && param.time != null) {
-						legPrice = pt.close;
+					const d = series ? param.seriesData.get(series) : undefined;
+					const rec = d as unknown as { close?: number; value?: number } | undefined;
+					const v = rec ? (rec.close ?? rec.value) : undefined;
+					if (v != null && param.time != null) {
+						legPrice = v;
 						legDate = fmtTime(Number(param.time));
 					} else {
 						resetLegend();
@@ -219,11 +250,9 @@
 		};
 	});
 
-	// reload candles when currency / quote / timeframe changes
 	$effect(() => {
 		loadHistory(currency, quote, timeframe);
 	});
-	// redraw overlay when forecast / horizon / rate changes
 	$effect(() => {
 		forecast;
 		activeHorizon;
@@ -256,7 +285,7 @@
 			class="chart-canvas"
 			bind:this={el}
 			role="img"
-			aria-label={`${currency.name} candlestick chart in ${quoteLabel}`}
+			aria-label={`${currency.name} ${seriesKind === 'line' ? 'price line' : 'candlestick'} chart in ${quoteLabel}`}
 		></div>
 	{/if}
 </div>
