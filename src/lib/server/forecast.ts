@@ -83,22 +83,20 @@ export function getForecast(
 		}
 	}
 
+	// read-only: do NOT create empty epochs here (only addCall creates them),
+	// otherwise merely viewing currencies bloats the store with empties.
 	const horizons = {} as Record<Horizon, HorizonState>;
 	for (const h of HORIZONS) {
 		const end = epochEnd(h);
 		const key = `${currencyApiId}:${h}:${end}`;
-		let e = db.epochs.find((x) => x.key === key);
-		if (!e) {
-			e = { key, currencyApiId, horizon: h, end, calls: [] };
-			db.epochs.push(e);
-			changed = true;
-		}
-		const your = pid ? e.calls.find((c) => c.pid === pid) : undefined;
+		const e = db.epochs.find((x) => x.key === key);
+		const calls = e?.calls ?? [];
+		const your = pid ? calls.find((c) => c.pid === pid) : undefined;
 		horizons[h] = {
 			end,
-			consensus: median(e.calls.map((c) => c.predicted)),
+			consensus: median(calls.map((c) => c.predicted)),
 			yourCall: your ? your.predicted : null,
-			calls: e.calls.length
+			calls: calls.length
 		};
 	}
 	if (changed) save(db);
