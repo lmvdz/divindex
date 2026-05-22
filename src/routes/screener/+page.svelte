@@ -19,15 +19,17 @@
 	let sortKey = $state<SortKey>('price');
 	let dir = $state<1 | -1>(-1);
 	let q = $state('');
+	let cat = $state('all');
+
+	const cats = $derived(['all', ...data.market.categories]);
 
 	const rows = $derived.by(() => {
 		const term = q.trim().toLowerCase();
-		const list = term
-			? market.currencies.filter(
-					(c) =>
-						c.name.toLowerCase().includes(term) || ticker(c.apiId).toLowerCase().includes(term)
-				)
-			: [...market.currencies];
+		const list = market.currencies.filter((c) => {
+			if (cat !== 'all' && c.category !== cat) return false;
+			if (!term) return true;
+			return c.name.toLowerCase().includes(term) || ticker(c.apiId).toLowerCase().includes(term);
+		});
 		list.sort((a, b) => {
 			const av = a[sortKey];
 			const bv = b[sortKey];
@@ -90,6 +92,12 @@
 				</button>
 			{/each}
 		</div>
+		<label class="sr-only" for="scr-cat">Category</label>
+		<select id="scr-cat" class="field scr-cat" bind:value={cat}>
+			{#each cats as c (c)}
+				<option value={c}>{c === 'all' ? 'All categories' : c}</option>
+			{/each}
+		</select>
 		<input class="field scr-search" type="search" placeholder="Search currency…" bind:value={q}
 			aria-label="Search currency" />
 	</header>
@@ -106,6 +114,7 @@
 					<tr>
 						<th class="num">#</th>
 						<th><button onclick={() => setSort('name')}>Market {arrow('name')}</button></th>
+						<th class="hide-sm">Type</th>
 						<th class="num"><button onclick={() => setSort('price')}>Price {arrow('price')}</button></th>
 						<th class="num"><button onclick={() => setSort('change1dPct')}>24h {arrow('change1dPct')}</button></th>
 						<th class="num"><button onclick={() => setSort('changePct')}>7d {arrow('changePct')}</button></th>
@@ -125,6 +134,7 @@
 									<span class="nm">{c.name}</span>
 								</a>
 							</td>
+							<td class="hide-sm"><span class="cat-tag">{c.category}</span></td>
 							<td class="num pr">{fmt(c.price)}{#if effectiveQuote(c.apiId, quote) !== quote}<small
 										class="unit">{QUOTE_SHORT[effectiveQuote(c.apiId, quote)]}</small
 									>{/if}</td>
@@ -142,7 +152,7 @@
 							</td>
 						</tr>
 					{:else}
-						<tr><td colspan="9" class="scr-empty">No currency matches “{q}”.</td></tr>
+						<tr><td colspan="10" class="scr-empty">No currency matches “{q}”.</td></tr>
 					{/each}
 				</tbody>
 			</table>

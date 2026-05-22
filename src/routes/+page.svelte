@@ -166,5 +166,10 @@
 		{/if}
 	</div>
 
-	<StatusBar source={market.source} league={market.league} asOf={market.asOf} />
+	<StatusBar
+		source={market.source}
+		league={market.league}
+		asOf={market.asOf}
+		economy={market.economy}
+	/>
 </div>

@@ -1,5 +1,32 @@
 import seed from '$lib/data/series.json';
-import type { Candle, Currency, History, Market, PricePoint, Timeframe } from '$lib/types';
+import type {
+	Candle,
+	Currency,
+	Economy,
+	History,
+	Market,
+	PricePoint,
+	Timeframe
+} from '$lib/types';
+
+// every currency-style category poe2scout exposes
+const CURRENCY_CATEGORIES = [
+	'currency',
+	'fragments',
+	'runes',
+	'essences',
+	'ultimatum',
+	'expedition',
+	'ritual',
+	'breach',
+	'abyss',
+	'delirium',
+	'incursion',
+	'idol',
+	'vaultkeys',
+	'uncutgems',
+	'lineagesupportgems'
+];
 
 const UA = 'Divindex/0.1 (+https://divindex.com; contact: hello@divindex.com)';
 const BASE = 'https://poe2scout.com/api';
@@ -56,7 +83,7 @@ function buildSeries(logs: RawLog[] | undefined): PricePoint[] {
 	return [...seen.values()].sort((a, b) => a.t.localeCompare(b.t));
 }
 
-function toCurrency(it: RawItem): Currency | null {
+function toCurrency(it: RawItem, category: string): Currency | null {
 	const series = buildSeries(it.PriceLogs);
 	if (series.length === 0) return null;
 	const last = series[series.length - 1];
@@ -67,6 +94,7 @@ function toCurrency(it: RawItem): Currency | null {
 		id: it.ItemId,
 		apiId: it.ApiId,
 		name: it.Text,
+		category,
 		price: last.p,
 		changePct: first.p ? round(((last.p - first.p) / first.p) * 100) : 0,
 		change1dPct: prev.p ? round(((last.p - prev.p) / prev.p) * 100) : 0,
@@ -77,6 +105,34 @@ function toCurrency(it: RawItem): Currency | null {
 	};
 }
 
+async function fetchCategory(enc: string, category: string): Promise<Currency[]> {
+	try {
+		const res = (await getJson(
+			`${BASE}/${REALM}/Leagues/${enc}/Currencies/ByCategory?Category=${category}&Page=1&PerPage=100`
+		)) as { Items?: RawItem[] };
+		const out: Currency[] = [];
+		for (const it of res.Items ?? []) {
+			const c = toCurrency(it, category);
+			if (c) out.push(c);
+		}
+		return out;
+	} catch {
+		return [];
+	}
+}
+
+async function getEconomy(enc: string): Promise<Economy | null> {
+	try {
+		const s = (await getJson(`${BASE}/${REALM}/Leagues/${enc}/ExchangeSnapshot`)) as {
+			Volume?: string;
+			MarketCap?: string;
+		};
+		return { marketCap: Number(s.MarketCap) || 0, volume: Number(s.Volume) || 0 };
+	} catch {
+		return null;
+	}
+}
+
 export async function getMarket(league?: string): Promise<Market> {
 	const lg = league ?? (await getCurrentLeague());
 	const cached = marketCache.get(lg);
@@ -84,21 +140,28 @@ export async function getMarket(league?: string): Promise<Market> {
 
 	try {
 		const enc = encodeURIComponent(lg);
-		const res = (await getJson(
-			`${BASE}/${REALM}/Leagues/${enc}/Currencies/ByCategory?Category=currency&Page=1&PerPage=100`
-		)) as { Items?: RawItem[] };
+		const [lists, economy] = await Promise.all([
+			Promise.all(CURRENCY_CATEGORIES.map((cat) => fetchCategory(enc, cat))),
+			getEconomy(enc)
+		]);
 
+		const seen = new Set<number>();
 		const currencies: Currency[] = [];
 		let asOf = '';
-		for (const it of res.Items ?? []) {
-			const c = toCurrency(it);
-			if (!c) continue;
-			const last = c.series[c.series.length - 1].t;
-			if (last > asOf) asOf = last;
-			currencies.push(c);
+		for (const list of lists) {
+			for (const c of list) {
+				if (seen.has(c.id)) continue;
+				seen.add(c.id);
+				const last = c.series[c.series.length - 1].t;
+				if (last > asOf) asOf = last;
+				currencies.push(c);
+			}
 		}
 		if (currencies.length === 0) return fallbackMarket();
 		currencies.sort((a, b) => b.price - a.price);
+		const categories = CURRENCY_CATEGORIES.filter((cat) =>
+			currencies.some((c) => c.category === cat)
+		);
 
 		const data: Market = {
 			league: lg,
@@ -106,6 +169,8 @@ export async function getMarket(league?: string): Promise<Market> {
 			asOf,
 			fetchedAt: Date.now(),
 			currencies,
+			categories,
+			economy,
 			note: 'Live Path of Exile 2 Currency Exchange data via poe2scout.',
 			source: 'poe2scout.com'
 		};
@@ -123,6 +188,7 @@ function fallbackMarket(): Market {
 			id: 0,
 			apiId: h.key,
 			name: h.text,
+			category: 'currency',
 			price: h.latest,
 			changePct: h.changePct,
 			change1dPct: 0,
@@ -137,6 +203,7 @@ function fallbackMarket(): Market {
 				id: -1 - i,
 				apiId: t.api,
 				name: t.text,
+				category: 'currency',
 				price: t.price,
 				changePct: t.wkChange,
 				change1dPct: 0,
@@ -153,6 +220,8 @@ function fallbackMarket(): Market {
 		asOf: seed.asOf,
 		fetchedAt: Date.now(),
 		currencies,
+		categories: ['currency'],
+		economy: null,
 		note: 'Snapshot — live feed unavailable.',
 		source: 'snapshot'
 	};

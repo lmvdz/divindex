@@ -273,6 +273,23 @@ a {
 	font: 500 0.72rem var(--mono);
 	color: var(--faint);
 }
+.market-cat {
+	padding: 0 12px 10px;
+	border-bottom: 1px solid var(--border);
+}
+.market-cat .field {
+	text-transform: capitalize;
+	min-height: 34px;
+}
+.scr-cat {
+	max-width: 170px;
+	text-transform: capitalize;
+}
+.cat-tag {
+	font-size: 0.74rem;
+	color: var(--faint);
+	text-transform: capitalize;
+}
 .market-head {
 	display: grid;
 	grid-template-columns: 1fr auto auto;

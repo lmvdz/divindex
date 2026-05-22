@@ -16,16 +16,18 @@
 	} = $props();
 
 	let q = $state('');
+	let cat = $state('all');
 	let sort = $state<'price' | 'name' | 'change'>('price');
+
+	const cats = $derived(['all', ...new Set(currencies.map((c) => c.category))]);
 
 	const filtered = $derived.by(() => {
 		const term = q.trim().toLowerCase();
-		const list = term
-			? currencies.filter(
-					(c) =>
-						c.name.toLowerCase().includes(term) || ticker(c.apiId).toLowerCase().includes(term)
-				)
-			: [...currencies];
+		const list = currencies.filter((c) => {
+			if (cat !== 'all' && c.category !== cat) return false;
+			if (!term) return true;
+			return c.name.toLowerCase().includes(term) || ticker(c.apiId).toLowerCase().includes(term);
+		});
 		if (sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
 		else if (sort === 'change') list.sort((a, b) => b.change1dPct - a.change1dPct);
 		else list.sort((a, b) => b.price - a.price);
@@ -53,6 +55,14 @@
 			aria-label="Search currency"
 		/>
 		<span class="market-count">{filtered.length}</span>
+	</div>
+	<div class="market-cat">
+		<label class="sr-only" for="mk-cat">Category</label>
+		<select id="mk-cat" class="field" bind:value={cat}>
+			{#each cats as c (c)}
+				<option value={c}>{c === 'all' ? 'All categories' : c}</option>
+			{/each}
+		</select>
 	</div>
 	<div class="market-head">
 		<button class="mh" class:active={sort === 'name'} onclick={() => (sort = 'name')}>Market</button>

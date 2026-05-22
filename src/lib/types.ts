@@ -8,6 +8,7 @@ export interface Currency {
 	id: number;
 	apiId: string;
 	name: string;
+	category: string;
 	price: number;
 	changePct: number; // over full window
 	change1dPct: number; // last vs previous day
@@ -49,12 +50,19 @@ export interface Forecast {
 	horizons: Record<Horizon, HorizonState>;
 }
 
+export interface Economy {
+	marketCap: number;
+	volume: number;
+}
+
 export interface Market {
 	league: string;
 	base: string; // 'Exalted Orb'
 	asOf: string; // ISO date of latest point
 	fetchedAt: number; // epoch ms
 	currencies: Currency[];
+	categories: string[];
+	economy: Economy | null;
 	note: string;
 	source: string;
 }
