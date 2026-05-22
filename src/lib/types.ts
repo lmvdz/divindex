@@ -17,8 +17,10 @@ export interface Currency {
 	series: PricePoint[];
 }
 
+export type Timeframe = '1h' | '4h' | '1d' | '1w';
+
 export interface Candle {
-	time: string; // yyyy-mm-dd
+	time: number; // UTC timestamp, seconds (bucket start)
 	open: number;
 	high: number;
 	low: number;
@@ -27,6 +29,7 @@ export interface Candle {
 
 export interface History {
 	id: number;
+	tf: Timeframe;
 	candles: Candle[];
 }
 

@@ -1,5 +1,5 @@
 import seed from '$lib/data/series.json';
-import type { Candle, Currency, History, Market, PricePoint } from '$lib/types';
+import type { Candle, Currency, History, Market, PricePoint, Timeframe } from '$lib/types';
 
 const UA = 'Divindex/0.1 (+https://divindex.com; contact: hello@divindex.com)';
 const BASE = 'https://poe2scout.com/api';
@@ -158,46 +158,67 @@ function fallbackMarket(): Market {
 	};
 }
 
-// Deep history -> daily OHLC candles, bucketed from poe2scout's intraday logs.
-export async function getHistory(itemId: number, league?: string): Promise<History> {
+const TF_LOGCOUNT: Record<Timeframe, number> = { '1h': 720, '4h': 1000, '1d': 2000, '1w': 2000 };
+
+function bucketStart(ms: number, tf: Timeframe): number {
+	const sec = Math.floor(ms / 1000);
+	if (tf === '1h') return Math.floor(sec / 3600) * 3600;
+	if (tf === '4h') return Math.floor(sec / 14400) * 14400;
+	if (tf === '1d') return Math.floor(sec / 86400) * 86400;
+	const d = new Date(ms);
+	const u = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+	u.setUTCDate(u.getUTCDate() - ((u.getUTCDay() + 6) % 7)); // back to Monday
+	return Math.floor(u.getTime() / 1000);
+}
+
+// poe2scout serves hourly logs; bucket them into OHLC candles at the timeframe.
+export async function getHistory(
+	itemId: number,
+	tf: Timeframe = '1d',
+	league?: string
+): Promise<History> {
 	const lg = league ?? (await getCurrentLeague());
-	const key = `${lg}:${itemId}`;
+	const key = `${lg}:${itemId}:${tf}`;
 	const cached = historyCache.get(key);
 	if (cached && Date.now() - cached.at < TTL) return cached.data;
 
 	try {
 		const enc = encodeURIComponent(lg);
 		const res = (await getJson(
-			`${BASE}/${REALM}/Leagues/${enc}/Items/${itemId}/History?LogCount=400`
+			`${BASE}/${REALM}/Leagues/${enc}/Items/${itemId}/History?LogCount=${TF_LOGCOUNT[tf]}`
 		)) as { PriceHistory?: RawLog[] };
 
 		const pts = (res.PriceHistory ?? [])
 			.filter((p) => typeof p?.Price === 'number')
-			.sort((a, b) => String(a.Time).localeCompare(String(b.Time)));
+			.map((p) => ({ ms: new Date(`${p.Time}Z`).getTime(), price: p.Price }))
+			.filter((p) => Number.isFinite(p.ms))
+			.sort((a, b) => a.ms - b.ms);
 
-		const days = new Map<string, { o: number; h: number; l: number; c: number }>();
+		const buckets = new Map<number, { o: number; h: number; l: number; c: number }>();
 		for (const p of pts) {
-			const d = String(p.Time).slice(0, 10);
-			const cur = days.get(d);
-			if (!cur) days.set(d, { o: p.Price, h: p.Price, l: p.Price, c: p.Price });
+			const t = bucketStart(p.ms, tf);
+			const cur = buckets.get(t);
+			if (!cur) buckets.set(t, { o: p.price, h: p.price, l: p.price, c: p.price });
 			else {
-				cur.h = Math.max(cur.h, p.Price);
-				cur.l = Math.min(cur.l, p.Price);
-				cur.c = p.Price;
+				cur.h = Math.max(cur.h, p.price);
+				cur.l = Math.min(cur.l, p.price);
+				cur.c = p.price;
 			}
 		}
-		const candles: Candle[] = [...days.entries()].map(([time, v]) => ({
-			time,
-			open: round(v.o),
-			high: round(v.h),
-			low: round(v.l),
-			close: round(v.c)
-		}));
+		const candles: Candle[] = [...buckets.entries()]
+			.sort((a, b) => a[0] - b[0])
+			.map(([time, v]) => ({
+				time,
+				open: round(v.o),
+				high: round(v.h),
+				low: round(v.l),
+				close: round(v.c)
+			}));
 
-		const data: History = { id: itemId, candles };
+		const data: History = { id: itemId, tf, candles };
 		if (candles.length) historyCache.set(key, { data, at: Date.now() });
 		return data;
 	} catch {
-		return cached?.data ?? { id: itemId, candles: [] };
+		return cached?.data ?? { id: itemId, tf, candles: [] };
 	}
 }

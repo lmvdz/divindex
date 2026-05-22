@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Candle, Currency, Forecast, Horizon } from '$lib/types';
+	import type { Candle, Currency, Forecast, Horizon, Timeframe } from '$lib/types';
 	import { fmt, signStr, signClass, ticker } from '$lib/format';
 	import { effectiveQuote, QUOTE_LABEL, type Quote } from '$lib/convert';
 
@@ -20,6 +20,14 @@
 		activeHorizon: Horizon;
 	} = $props();
 
+	const TFS: { id: Timeframe; label: string }[] = [
+		{ id: '1h', label: '1H' },
+		{ id: '4h', label: '4H' },
+		{ id: '1d', label: '1D' },
+		{ id: '1w', label: '1W' }
+	];
+	let timeframe = $state<Timeframe>('1d');
+	const intraday = $derived(timeframe === '1h' || timeframe === '4h');
 	const quoteLabel = $derived(QUOTE_LABEL[effectiveQuote(currency.apiId, quote)]);
 
 	let el = $state<HTMLDivElement>();
@@ -42,13 +50,18 @@
 
 	const HLABEL: Record<Horizon, string> = { hour: '1H', day: '1D', week: '1W' };
 
+	function fmtTime(sec: number): string {
+		const iso = new Date(sec * 1000).toISOString();
+		return intraday ? iso.slice(5, 16).replace('T', ' ') : iso.slice(0, 10);
+	}
+
 	function resetLegend() {
 		if (candles.length) {
 			const last = candles[candles.length - 1];
 			const prev = candles.length > 1 ? candles[candles.length - 2] : last;
 			legPrice = last.close;
 			legChg = prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0;
-			legDate = last.time;
+			legDate = fmtTime(last.time);
 		} else {
 			legPrice = currency.price / fxRate;
 			legChg = currency.change1dPct;
@@ -57,12 +70,16 @@
 	}
 
 	function synth(c: Currency): Candle[] {
-		return c.series.map((p) => ({ time: p.t, open: p.p, high: p.p, low: p.p, close: p.p }));
+		return c.series.map((p) => {
+			const t = Math.floor(new Date(`${p.t}T00:00:00Z`).getTime() / 1000);
+			return { time: t, open: p.p, high: p.p, low: p.p, close: p.p };
+		});
 	}
 
 	function paint() {
 		if (ready && series) {
-			series.setData(candles);
+			// lightweight-charts wants Time; numeric UTCTimestamp is valid
+			series.setData(candles as never);
 			chart?.timeScale().fitContent();
 			resetLegend();
 		}
@@ -103,9 +120,9 @@
 		}
 	}
 
-	async function loadCandles(id: number): Promise<Candle[]> {
+	async function loadCandles(id: number, tf: Timeframe): Promise<Candle[]> {
 		try {
-			const r = await fetch(`/api/history/${id}`);
+			const r = await fetch(`/api/history/${id}?tf=${tf}`);
 			const d = r.ok ? ((await r.json()) as { candles?: Candle[] }) : { candles: [] };
 			return d.candles ?? [];
 		} catch {
@@ -113,18 +130,17 @@
 		}
 	}
 
-	async function loadHistory(c: Currency, q: Quote) {
+	async function loadHistory(c: Currency, q: Quote, tf: Timeframe) {
 		loading = true;
 		try {
-			let cs = await loadCandles(c.id);
+			let cs = await loadCandles(c.id, tf);
 			if (!cs.length) cs = synth(c);
-			// denominate in Divine (per-day) when the effective quote is Divine
 			if (effectiveQuote(c.apiId, q) === 'divine' && c.apiId !== 'divine') {
-				const dc = await loadCandles(divineId);
-				const byDate = new Map(dc.map((k) => [k.time, k.close]));
+				const dc = await loadCandles(divineId, tf);
+				const byT = new Map(dc.map((k) => [k.time, k.close]));
 				const fallback = dc.length ? dc[dc.length - 1].close : fxRate || 1;
 				cs = cs.map((k) => {
-					const dv = byDate.get(k.time) ?? fallback;
+					const dv = byT.get(k.time) ?? fallback;
 					return {
 						time: k.time,
 						open: k.open / dv,
@@ -138,6 +154,7 @@
 		} finally {
 			loading = false;
 		}
+		chart?.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } });
 		paint();
 		drawForecast();
 	}
@@ -161,7 +178,7 @@
 						horzLines: { color: 'rgba(35,40,56,0.4)' }
 					},
 					rightPriceScale: { borderColor: '#232838' },
-					timeScale: { borderColor: '#232838' },
+					timeScale: { borderColor: '#232838', timeVisible: intraday, secondsVisible: false },
 					crosshair: {
 						mode: lc.CrosshairMode.Normal,
 						vertLine: { color: '#2d3346', labelBackgroundColor: '#1b2030' },
@@ -179,9 +196,9 @@
 					const pt = series
 						? (param.seriesData.get(series) as { close: number } | undefined)
 						: undefined;
-					if (pt && param.time) {
+					if (pt && param.time != null) {
 						legPrice = pt.close;
-						legDate = String(param.time);
+						legDate = fmtTime(Number(param.time));
 					} else {
 						resetLegend();
 					}
@@ -202,9 +219,9 @@
 		};
 	});
 
-	// reload + re-denominate candles when currency or quote changes
+	// reload candles when currency / quote / timeframe changes
 	$effect(() => {
-		loadHistory(currency, quote);
+		loadHistory(currency, quote, timeframe);
 	});
 	// redraw overlay when forecast / horizon / rate changes
 	$effect(() => {
@@ -226,6 +243,11 @@
 		{:else if legDate}
 			<span class="cl-date">{legDate}</span>
 		{/if}
+		<div class="tf-tabs" role="group" aria-label="Timeframe">
+			{#each TFS as t (t.id)}
+				<button class:active={timeframe === t.id} onclick={() => (timeframe = t.id)}>{t.label}</button>
+			{/each}
+		</div>
 	</div>
 	{#if failed}
 		<div class="chart-fallback">Chart unavailable — data still listed at right.</div>
