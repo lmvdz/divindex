@@ -1,9 +1,19 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Candle, Currency } from '$lib/types';
+	import type { Candle, Currency, Forecast, Horizon } from '$lib/types';
 	import { fmt, signStr, signClass, ticker } from '$lib/format';
 
-	let { currency, base }: { currency: Currency; base: string } = $props();
+	let {
+		currency,
+		base,
+		forecast,
+		activeHorizon
+	}: {
+		currency: Currency;
+		base: string;
+		forecast: Forecast | null;
+		activeHorizon: Horizon;
+	} = $props();
 
 	let el = $state<HTMLDivElement>();
 	let ready = $state(false);
@@ -17,8 +27,13 @@
 
 	type ChartApi = import('lightweight-charts').IChartApi;
 	type CandleApi = import('lightweight-charts').ISeriesApi<'Candlestick'>;
+	type PriceLine = import('lightweight-charts').IPriceLine;
 	let chart: ChartApi | undefined;
 	let series: CandleApi | undefined;
+	let lines: PriceLine[] = [];
+	let LSEnum: typeof import('lightweight-charts').LineStyle | undefined;
+
+	const HLABEL: Record<Horizon, string> = { hour: '1H', day: '1D', week: '1W' };
 
 	function resetLegend() {
 		if (candles.length) {
@@ -34,7 +49,6 @@
 		}
 	}
 
-	// degenerate candles from the list snapshot, used until/if deep history loads
 	function synth(c: Currency): Candle[] {
 		return c.series.map((p) => ({ time: p.t, open: p.p, high: p.p, low: p.p, close: p.p }));
 	}
@@ -44,6 +58,41 @@
 			series.setData(candles);
 			chart?.timeScale().fitContent();
 			resetLegend();
+		}
+	}
+
+	function drawForecast() {
+		if (!ready || !series || !LSEnum) return;
+		for (const l of lines) series.removePriceLine(l);
+		lines = [];
+		if (!forecast) return;
+		for (const h of ['hour', 'day', 'week'] as Horizon[]) {
+			const c = forecast.horizons[h].consensus;
+			if (c != null) {
+				lines.push(
+					series.createPriceLine({
+						price: c,
+						color: '#c2913f',
+						lineWidth: 1,
+						lineStyle: LSEnum.Dashed,
+						axisLabelVisible: true,
+						title: `${HLABEL[h]} consensus`
+					})
+				);
+			}
+		}
+		const yc = forecast.horizons[activeHorizon].yourCall;
+		if (yc != null) {
+			lines.push(
+				series.createPriceLine({
+					price: yc,
+					color: '#ecca8e',
+					lineWidth: 2,
+					lineStyle: LSEnum.Solid,
+					axisLabelVisible: true,
+					title: `${HLABEL[activeHorizon]} your call`
+				})
+			);
 		}
 	}
 
@@ -59,6 +108,7 @@
 			loading = false;
 		}
 		paint();
+		drawForecast();
 	}
 
 	onMount(() => {
@@ -66,6 +116,7 @@
 			try {
 				const lc = await import('lightweight-charts');
 				if (!el) return;
+				LSEnum = lc.LineStyle;
 				chart = lc.createChart(el, {
 					autoSize: true,
 					layout: {
@@ -106,6 +157,7 @@
 				});
 				ready = true;
 				paint();
+				drawForecast();
 			} catch {
 				failed = true;
 			}
@@ -119,9 +171,15 @@
 		};
 	});
 
-	// load deep history whenever the selected currency changes (incl. initial)
+	// reload candles when the currency changes
 	$effect(() => {
 		loadHistory(currency);
+	});
+	// redraw overlay when the forecast or active horizon changes
+	$effect(() => {
+		forecast;
+		activeHorizon;
+		drawForecast();
 	});
 </script>
 

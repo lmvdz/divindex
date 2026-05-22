@@ -30,21 +30,20 @@ export interface History {
 	candles: Candle[];
 }
 
-export interface ForecastState {
-	current: {
-		id: string;
-		target: number;
-		currencyApiId: string;
-		price: number;
-		calls: number;
-		yourCall: { name: string; predicted: number } | null;
-	};
-	history: Array<{
-		id: string;
-		target: number;
-		actual: number;
-		leaderboard: Array<{ name: string; predicted: number; errorPct: number }>;
-	}>;
+export type Horizon = 'hour' | 'day' | 'week';
+
+export interface HorizonState {
+	end: number; // epoch end (ms)
+	consensus: number | null; // median of all calls this epoch
+	yourCall: number | null;
+	calls: number;
+}
+
+export interface Forecast {
+	currencyApiId: string;
+	currencyName: string;
+	price: number;
+	horizons: Record<Horizon, HorizonState>;
 }
 
 export interface Market {

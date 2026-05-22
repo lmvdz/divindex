@@ -1,10 +1,11 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import type { ForecastState } from '$lib/types';
+import type { Forecast, Horizon, HorizonState } from '$lib/types';
 
-// Simple JSON-file store for the free weekly forecast game.
-// Swap for a real DB (Postgres/SQLite) when this grows; the shape is stable.
+// JSON-file store for the free per-currency, multi-horizon forecast game.
+// Swap for a real DB when it grows; the shape is stable.
 const DIR = '.data';
 const FILE = `${DIR}/forecast.json`;
+const HORIZONS: Horizon[] = ['hour', 'day', 'week'];
 
 interface Call {
 	pid: string;
@@ -12,109 +13,119 @@ interface Call {
 	predicted: number;
 	at: number;
 }
-interface Round {
-	id: string;
-	target: number; // settlement time (epoch ms)
+interface Epoch {
+	key: string;
 	currencyApiId: string;
+	horizon: Horizon;
+	end: number;
 	calls: Call[];
 	settled?: { actual: number; at: number };
 }
 interface DB {
-	rounds: Round[];
+	epochs: Epoch[];
 }
 
 function load(): DB {
 	try {
 		return JSON.parse(readFileSync(FILE, 'utf8')) as DB;
 	} catch {
-		return { rounds: [] };
+		return { epochs: [] };
 	}
 }
 function save(db: DB) {
 	mkdirSync(DIR, { recursive: true });
+	// keep the file bounded: drop the oldest settled epochs
+	if (db.epochs.length > 2000) {
+		db.epochs.sort((a, b) => b.end - a.end);
+		db.epochs = db.epochs.slice(0, 2000);
+	}
 	writeFileSync(FILE, JSON.stringify(db));
 }
 
-// next Sunday 00:00 UTC
-function nextTarget(from = Date.now()): number {
-	const d = new Date(from);
-	const u = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-	const day = u.getUTCDay();
-	u.setUTCDate(u.getUTCDate() + (day === 0 ? 7 : 7 - day));
-	return u.getTime();
-}
-
-function ensureCurrent(db: DB, currencyApiId = 'divine'): Round {
-	const target = nextTarget();
-	let r = db.rounds.find((x) => x.target === target);
-	if (!r) {
-		r = { id: new Date(target).toISOString().slice(0, 10), target, currencyApiId, calls: [] };
-		db.rounds.push(r);
+function epochEnd(h: Horizon, now = Date.now()): number {
+	const d = new Date(now);
+	if (h === 'hour') {
+		return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours() + 1);
 	}
-	return r;
+	if (h === 'day') {
+		return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+	}
+	const base = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+	const day = base.getUTCDay();
+	base.setUTCDate(base.getUTCDate() + (day === 0 ? 7 : 7 - day));
+	return base.getTime();
 }
 
-export function getState(pid: string | undefined, price: number): ForecastState {
+function median(xs: number[]): number | null {
+	if (!xs.length) return null;
+	const s = [...xs].sort((a, b) => a - b);
+	const m = Math.floor(s.length / 2);
+	return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+
+export function getForecast(
+	pid: string | undefined,
+	currencyApiId: string,
+	currencyName: string,
+	price: number
+): Forecast {
 	const db = load();
 	let changed = false;
-	// lazily settle any past rounds against the latest known price
-	for (const r of db.rounds) {
-		if (!r.settled && r.target < Date.now()) {
-			r.settled = { actual: price, at: Date.now() };
+
+	// lazily settle this currency's past epochs against the latest known price
+	for (const e of db.epochs) {
+		if (e.currencyApiId === currencyApiId && !e.settled && e.end < Date.now()) {
+			e.settled = { actual: price, at: Date.now() };
 			changed = true;
 		}
 	}
-	ensureCurrent(db);
+
+	const horizons = {} as Record<Horizon, HorizonState>;
+	for (const h of HORIZONS) {
+		const end = epochEnd(h);
+		const key = `${currencyApiId}:${h}:${end}`;
+		let e = db.epochs.find((x) => x.key === key);
+		if (!e) {
+			e = { key, currencyApiId, horizon: h, end, calls: [] };
+			db.epochs.push(e);
+			changed = true;
+		}
+		const your = pid ? e.calls.find((c) => c.pid === pid) : undefined;
+		horizons[h] = {
+			end,
+			consensus: median(e.calls.map((c) => c.predicted)),
+			yourCall: your ? your.predicted : null,
+			calls: e.calls.length
+		};
+	}
 	if (changed) save(db);
-	else save(db); // persist any freshly created round too
 
-	const cur = ensureCurrent(db);
-	const your = pid ? cur.calls.find((c) => c.pid === pid) : undefined;
-
-	const history = db.rounds
-		.filter((r) => r.settled)
-		.sort((a, b) => b.target - a.target)
-		.slice(0, 8)
-		.map((r) => ({
-			id: r.id,
-			target: r.target,
-			actual: r.settled!.actual,
-			leaderboard: r.calls
-				.map((c) => ({
-					name: c.name,
-					predicted: c.predicted,
-					errorPct: r.settled!.actual
-						? (Math.abs(c.predicted - r.settled!.actual) / r.settled!.actual) * 100
-						: 0
-				}))
-				.sort((a, b) => a.errorPct - b.errorPct)
-				.slice(0, 10)
-		}));
-
-	return {
-		current: {
-			id: cur.id,
-			target: cur.target,
-			currencyApiId: cur.currencyApiId,
-			price,
-			calls: cur.calls.length,
-			yourCall: your ? { name: your.name, predicted: your.predicted } : null
-		},
-		history
-	};
+	return { currencyApiId, currencyName, price, horizons };
 }
 
-export function addCall(pid: string, name: string, predicted: number): void {
+export function addCall(
+	pid: string,
+	name: string,
+	currencyApiId: string,
+	horizon: Horizon,
+	predicted: number
+): void {
+	if (!HORIZONS.includes(horizon)) return;
 	const db = load();
-	const cur = ensureCurrent(db);
-	if (cur.settled) return;
-	const existing = cur.calls.find((c) => c.pid === pid);
+	const end = epochEnd(horizon);
+	const key = `${currencyApiId}:${horizon}:${end}`;
+	let e = db.epochs.find((x) => x.key === key);
+	if (!e) {
+		e = { key, currencyApiId, horizon, end, calls: [] };
+		db.epochs.push(e);
+	}
+	const existing = e.calls.find((c) => c.pid === pid);
 	if (existing) {
 		existing.predicted = predicted;
 		existing.name = name;
 		existing.at = Date.now();
 	} else {
-		cur.calls.push({ pid, name, predicted, at: Date.now() });
+		e.calls.push({ pid, name, predicted, at: Date.now() });
 	}
 	save(db);
 }

@@ -16,7 +16,7 @@
 	</a>
 	<nav class="tb-nav">
 		<a href="/" aria-current="page" class="active">Terminal</a>
-		<a href="/forecast">Forecast</a>
+		<a href="/screener">Screener</a>
 	</nav>
 	<span class="lg-chip" title="Active league">{league}</span>
 	<span class="tb-spacer"></span>
