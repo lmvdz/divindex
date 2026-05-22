@@ -8,6 +8,7 @@
 
 	let { data }: { data: PageData } = $props();
 	let ladder = $state<Ladder>(untrack(() => data.ladder));
+	const calib = $derived(data.calibration);
 	let scope = $state<'all' | Horizon>('all');
 	let busy = $state(false);
 
@@ -75,6 +76,23 @@
 				{scope === 'all' ? 'all calls' : `${SCOPES.find((s) => s.id === scope)?.label} calls`} · settled scores only
 			</span>
 		</div>
+
+		{#if calib && calib.overall.n > 0}
+			<section class="calib" aria-label="Crowd calibration">
+				<span class="calib-title">Is the crowd predictive?</span>
+				<div class="calib-cells">
+					<div><span class="st-label">Direction</span><b class="mono" class:pos={calib.overall.dir >= 0.5}>{pct(calib.overall.dir)}</b></div>
+					<div><span class="st-label">Accuracy</span><b class="mono">{pct(calib.overall.acc)}</b></div>
+					{#each [{ id: 'hour', label: '1H' }, { id: 'day', label: '1D' }, { id: 'week', label: '1W' }] as h (h.id)}
+						<div>
+							<span class="st-label"><span class="hdot" style="background:{HORIZON_COLORS[h.id as Horizon].base}"></span>{h.label} dir</span>
+							<b class="mono">{calib.byH[h.id as Horizon].n ? pct(calib.byH[h.id as Horizon].dir) : '—'}</b>
+						</div>
+					{/each}
+					<div><span class="st-label">Sample</span><b class="mono">{calib.overall.n}</b></div>
+				</div>
+			</section>
+		{/if}
 
 		{#if ladder.you && ladder.you.calls > 0}
 			<section class="standing">

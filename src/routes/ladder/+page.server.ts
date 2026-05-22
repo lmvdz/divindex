@@ -1,5 +1,5 @@
 import { getMarket } from '$lib/server/poe2scout';
-import { getLadder } from '$lib/server/forecast';
+import { getCalibration, getLadder } from '$lib/server/forecast';
 import { authConfigured } from '../../auth';
 import type { PageServerLoad } from './$types';
 
@@ -13,6 +13,9 @@ export const load: PageServerLoad = async ({ cookies, locals, platform }) => {
 		pid = cookies.get('dx_pid');
 	}
 	const market = await getMarket();
-	const ladder = await getLadder(platform, market, pid);
-	return { ladder };
+	const [ladder, calibration] = await Promise.all([
+		getLadder(platform, market, pid),
+		getCalibration(platform, market)
+	]);
+	return { ladder, calibration };
 };

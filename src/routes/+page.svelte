@@ -15,7 +15,7 @@
 		type Quote
 	} from '$lib/convert';
 	import { TF_TO_HORIZON } from '$lib/horizons';
-	import type { Forecast, Horizon, Market, Profile } from '$lib/types';
+	import type { Calibration, Forecast, Horizon, Market, Profile } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -97,6 +97,15 @@
 	$effect(() => {
 		signedIn;
 		loadProfile();
+	});
+
+	// ---- crowd calibration (is the consensus predictive?) ----
+	let calibration = $state<Calibration | null>(null);
+	$effect(() => {
+		fetch('/api/calibration')
+			.then((r) => (r.ok ? r.json() : null))
+			.then((c) => (calibration = c))
+			.catch(() => (calibration = null));
 	});
 
 	async function submitCall(name: string | null, predictedExalt: number) {
@@ -181,6 +190,7 @@
 					{authConfigured}
 					stats={profile?.you ?? null}
 					rank={profile?.rank ?? null}
+					calib={calibration}
 					onhorizon={(h) => (activeHorizon = h)}
 					onsubmit={submitCall}
 				/>

@@ -1,4 +1,6 @@
 import type {
+	Calib,
+	Calibration,
 	Forecast,
 	Horizon,
 	HorizonState,
@@ -291,4 +293,47 @@ export async function getLadder(
 export async function getProfile(platform: Plat, market: Market, pid: string | undefined): Promise<Profile> {
 	const ladder = await getLadder(platform, market, pid);
 	return { you: ladder.you, rank: ladder.yourRank, league: ladder.league };
+}
+
+// ---- crowd calibration: is the consensus actually predictive? ---------------
+interface Acc {
+	n: number;
+	accSum: number;
+	dirN: number; // epochs where a baseline existed (direction denominator)
+	dirHits: number;
+}
+function newAcc(): Acc {
+	return { n: 0, accSum: 0, dirN: 0, dirHits: 0 };
+}
+function rate(a: Acc): Calib {
+	return { n: a.n, dir: a.dirN ? a.dirHits / a.dirN : 0, acc: a.n ? a.accSum / a.n : 0 };
+}
+
+export async function getCalibration(platform: Plat, market: Market): Promise<Calibration> {
+	const kv = kvOf(platform);
+	const db = await load(kv);
+	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
+	if (settleDue(db, (cid) => pm.get(cid))) await save(kv, db);
+
+	const overall = newAcc();
+	const byH: Record<Horizon, Acc> = { hour: newAcc(), day: newAcc(), week: newAcc() };
+	for (const e of db.epochs) {
+		const actual = e.settled?.actual;
+		if (actual == null || !(actual > 0)) continue;
+		const cp = median(e.calls.map((c) => c.predicted));
+		if (cp == null) continue;
+		const bases = e.calls.map((c) => c.base).filter((b): b is number => b != null && b > 0);
+		const cb = bases.length ? median(bases) : null;
+		const a = Math.max(0, 1 - Math.min(1, Math.abs(cp - actual) / actual));
+		const dirCorrect = cb != null && Math.sign(cp - cb) !== 0 && Math.sign(cp - cb) === Math.sign(actual - cb);
+		for (const t of [overall, byH[e.horizon]]) {
+			t.n += 1;
+			t.accSum += a;
+			if (cb != null) {
+				t.dirN += 1;
+				if (dirCorrect) t.dirHits += 1;
+			}
+		}
+	}
+	return { league: market.league, overall: rate(overall), byH: { hour: rate(byH.hour), day: rate(byH.day), week: rate(byH.week) } };
 }

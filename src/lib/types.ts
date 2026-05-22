@@ -117,6 +117,18 @@ export interface Profile {
 	league: string;
 }
 
+export interface Calib {
+	n: number; // settled epochs sampled (accuracy denominator)
+	dir: number; // consensus direction hit-rate 0..1
+	acc: number; // consensus avg accuracy 0..1
+}
+
+export interface Calibration {
+	league: string;
+	overall: Calib;
+	byH: Record<Horizon, Calib>;
+}
+
 export interface Economy {
 	marketCap: number;
 	volume: number;

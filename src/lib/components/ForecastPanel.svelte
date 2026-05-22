@@ -3,7 +3,7 @@
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
 	import { RARITY_COLOR, badgeById } from '$lib/badges';
-	import type { Forecast, Horizon, PlayerStats } from '$lib/types';
+	import type { Calibration, Forecast, Horizon, PlayerStats } from '$lib/types';
 
 	let {
 		forecast,
@@ -16,6 +16,7 @@
 		authConfigured,
 		stats,
 		rank,
+		calib,
 		onhorizon,
 		onsubmit
 	}: {
@@ -29,9 +30,12 @@
 		authConfigured: boolean;
 		stats: PlayerStats | null;
 		rank: number | null;
+		calib: Calibration | null;
 		onhorizon: (h: Horizon) => void;
 		onsubmit: (name: string | null, predictedExalt: number) => Promise<{ ok: boolean; error?: string }>;
 	} = $props();
+
+	const crowd = $derived(calib ? calib.byH[active] : null);
 
 	const myBadges = $derived((stats?.badges ?? []).map((id) => badgeById(id)).filter((b) => b != null));
 	const myAcc = $derived(stats && stats.calls ? stats.accSum / stats.calls : 0);
@@ -155,6 +159,13 @@
 			</div>
 			<div><span class="fc-label">Calls</span><b class="mono">{cur.calls}</b></div>
 		</div>
+
+		{#if crowd && crowd.n > 0}
+			<p class="crowd-cal">
+				Crowd on {longLabel}: <b class:pos={crowd.dir >= 0.5}>{pct(crowd.dir)}</b> direction ·
+				<b>{pct(crowd.acc)}</b> accuracy <span class="muted">({crowd.n} settled)</span>
+			</p>
+		{/if}
 
 		{#if showSignIn}
 			<div class="fx-signin">

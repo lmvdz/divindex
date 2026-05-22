@@ -1471,3 +1471,50 @@ a {
 	letter-spacing: 0.05em;
 	color: var(--pos);
 }
+
+/* crowd calibration */
+.calib {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 14px;
+	padding: 12px 16px;
+	margin-bottom: 16px;
+	border: 1px solid var(--border-2);
+	border-radius: var(--radius);
+	background: var(--surface-2);
+}
+.calib-title {
+	font-family: var(--serif);
+	color: var(--text);
+	font-size: 15px;
+}
+.calib-cells {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 18px;
+	margin-left: auto;
+}
+.calib-cells > div {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.calib-cells b {
+	font-size: 15px;
+	color: var(--text);
+}
+.calib-cells b.pos {
+	color: var(--pos);
+}
+.crowd-cal {
+	margin: 8px 0 0;
+	font-size: 12px;
+	color: var(--muted);
+}
+.crowd-cal b {
+	color: var(--text);
+}
+.crowd-cal b.pos {
+	color: var(--pos);
+}

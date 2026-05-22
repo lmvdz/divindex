@@ -36,6 +36,7 @@
 	];
 	let timeframe = $state<Timeframe>('1d');
 	let emaPeriod = $state<number | null>(null);
+	let bb = $state(false);
 	const intraday = $derived(timeframe === '1h' || timeframe === '4h');
 	const kindFor = (tf: Timeframe): 'line' | 'candle' => (tf === '1h' ? 'line' : 'candle');
 	const quoteLabel = $derived(QUOTE_LABEL[effectiveQuote(currency.apiId, quote)]);
@@ -64,6 +65,7 @@
 	let volSeries: import('lightweight-charts').ISeriesApi<'Histogram'> | undefined;
 	let seriesKind = $state<'line' | 'candle'>('candle');
 	let fcLines: LineApi[] = [];
+	let bbSeries: LineApi[] = [];
 
 	function fmtTime(sec: number): string {
 		const iso = new Date(sec * 1000).toISOString();
@@ -175,6 +177,52 @@
 		emaLast = data.length ? data[data.length - 1].value : null;
 	}
 
+	function bollinger(cs: Candle[], period = 20, mult = 2) {
+		const out: { time: number; upper: number; mid: number; lower: number }[] = [];
+		for (let i = period - 1; i < cs.length; i++) {
+			let sum = 0;
+			for (let j = i - period + 1; j <= i; j++) sum += cs[j].close;
+			const mean = sum / period;
+			let v = 0;
+			for (let j = i - period + 1; j <= i; j++) {
+				const d = cs[j].close - mean;
+				v += d * d;
+			}
+			const sd = Math.sqrt(v / period);
+			out.push({ time: cs[i].time, upper: mean + mult * sd, mid: mean, lower: mean - mult * sd });
+		}
+		return out;
+	}
+
+	function drawBB() {
+		if (!ready || !chart || !lcRef) return;
+		for (const s of bbSeries) {
+			try {
+				chart.removeSeries(s);
+			} catch {
+				/* gone */
+			}
+		}
+		bbSeries = [];
+		if (!bb || candles.length < 20) return;
+		const data = bollinger(candles, 20, 2);
+		const band = (vals: { time: number; value: number }[], width: 1 | 2, dashed: boolean, alpha: number) => {
+			const s = chart!.addSeries(lcRef!.LineSeries, {
+				color: `rgba(176,138,255,${alpha})`,
+				lineWidth: width,
+				lineStyle: dashed ? lcRef!.LineStyle.Dashed : lcRef!.LineStyle.Solid,
+				priceLineVisible: false,
+				lastValueVisible: false,
+				crosshairMarkerVisible: false
+			});
+			s.setData(vals as never);
+			bbSeries.push(s);
+		};
+		band(data.map((d) => ({ time: d.time, value: d.upper })), 1, true, 0.55);
+		band(data.map((d) => ({ time: d.time, value: d.mid })), 1, false, 0.3);
+		band(data.map((d) => ({ time: d.time, value: d.lower })), 1, true, 0.55);
+	}
+
 	function drawVolume() {
 		if (!ready || !volSeries) return;
 		const data = candles.map((c, i) => {
@@ -280,6 +328,7 @@
 		drawVolume();
 		drawEMA();
 		drawForecast();
+		drawBB();
 	}
 
 	onMount(() => {
@@ -330,6 +379,7 @@
 				drawVolume();
 				drawEMA();
 				drawForecast();
+				drawBB();
 			} catch {
 				failed = true;
 			}
@@ -355,6 +405,10 @@
 		fxRate;
 		drawForecast();
 	});
+	$effect(() => {
+		bb;
+		drawBB();
+	});
 </script>
 
 <div class="chart-pane">
@@ -379,6 +433,9 @@
 			{#each EMA_OPTS as o (o.label)}
 				<button class:active={emaPeriod === o.v} onclick={() => (emaPeriod = o.v)}>{o.label}</button>
 			{/each}
+		</div>
+		<div class="tf-tabs" role="group" aria-label="Indicators">
+			<button class:active={bb} onclick={() => (bb = !bb)} title="Bollinger Bands (20, 2σ)">BB</button>
 		</div>
 		<div class="tf-tabs" role="group" aria-label="Timeframe">
 			{#each TFS as t (t.id)}
