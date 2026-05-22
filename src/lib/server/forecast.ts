@@ -1,4 +1,4 @@
-import type { Forecast, Horizon, HorizonState } from '$lib/types';
+import type { Forecast, Horizon, HorizonState, PredPoint } from '$lib/types';
 
 // Cloudflare Workers have no filesystem, so the forecast store lives in KV
 // (binding FORECAST_KV) when available, with an in-memory fallback for local
@@ -105,7 +105,25 @@ export async function getForecast(
 	}
 	if (changed) await save(kv, db);
 
-	return { currencyApiId, currencyName, price, horizons };
+	// prediction history as a time-series: a point per epoch at its settlement time
+	const series = {} as Record<Horizon, { you: PredPoint[]; consensus: PredPoint[] }>;
+	for (const h of HORIZONS) {
+		const eps = db.epochs
+			.filter((x) => x.currencyApiId === currencyApiId && x.horizon === h)
+			.sort((a, b) => a.end - b.end);
+		const you: PredPoint[] = [];
+		const cons: PredPoint[] = [];
+		for (const e of eps) {
+			const t = Math.floor(e.end / 1000);
+			const cm = median(e.calls.map((c) => c.predicted));
+			if (cm != null) cons.push({ t, v: cm });
+			const yc = pid ? e.calls.find((c) => c.pid === pid) : undefined;
+			if (yc) you.push({ t, v: yc.predicted });
+		}
+		series[h] = { you, consensus: cons };
+	}
+
+	return { currencyApiId, currencyName, price, horizons, series };
 }
 
 export async function addCall(

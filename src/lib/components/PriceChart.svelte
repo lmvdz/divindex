@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import type { Candle, Currency, Forecast, Horizon, Timeframe } from '$lib/types';
+	import type { Candle, Currency, Forecast, Horizon, PredPoint, Timeframe } from '$lib/types';
 	import { fmt, compact, signStr, signClass } from '$lib/format';
 	import { effectiveQuote, QUOTE_LABEL, type Quote } from '$lib/convert';
 	import { HORIZON_COLORS } from '$lib/horizons';
@@ -189,7 +189,14 @@
 	}
 
 	// Project predictions forward in time: a 2-point line from the last actual
-	// price to each horizon's predicted value at its settlement timestamp.
+	// Seconds between consecutive epochs, per horizon — used to detect gaps.
+	const STEP: Record<Horizon, number> = { hour: 3600, day: 86400, week: 604800 };
+
+	// Plot prediction history as its own time-series: one point per epoch at its
+	// settlement time, valued at the predicted price. Point markers flag the real
+	// predictions. Where an interval has no forecast we insert a whitespace point
+	// so the line BREAKS across the gap instead of drawing a misleading straight
+	// bridge — isolated predictions render as standalone dots.
 	function drawForecast() {
 		if (!ready || !chart || !lcRef) return;
 		for (const s of fcLines) {
@@ -200,12 +207,16 @@
 			}
 		}
 		fcLines = [];
-		if (!forecast || candles.length === 0) return;
-		const last = candles[candles.length - 1];
-		const anchor = { time: last.time, value: last.close };
+		if (!forecast) return;
 
-		const addLine = (endSec: number, value: number, color: string, dashed: boolean, width: 1 | 2) => {
-			if (!chart || !lcRef || endSec <= last.time) return;
+		const addSeries = (pts: PredPoint[], step: number, color: string, dashed: boolean, width: 1 | 2) => {
+			if (!chart || !lcRef || pts.length === 0) return;
+			const data: ({ time: number; value: number } | { time: number })[] = [];
+			for (let i = 0; i < pts.length; i++) {
+				data.push({ time: pts[i].t, value: pts[i].v / fxRate });
+				const next = pts[i + 1];
+				if (next && next.t - pts[i].t > step * 1.5) data.push({ time: pts[i].t + step });
+			}
 			const s = chart.addSeries(lcRef.LineSeries, {
 				color,
 				lineWidth: width,
@@ -215,17 +226,14 @@
 				crosshairMarkerVisible: false,
 				pointMarkersVisible: true
 			});
-			s.setData([anchor, { time: endSec, value }] as never);
+			s.setData(data as never);
 			fcLines.push(s);
 		};
 
 		for (const h of ['hour', 'day', 'week'] as Horizon[]) {
 			const col = HORIZON_COLORS[h];
-			const endSec = Math.floor(forecast.horizons[h].end / 1000);
-			const cons = forecast.horizons[h].consensus;
-			if (cons != null) addLine(endSec, cons / fxRate, col.base, true, 1);
-			const yc = forecast.horizons[h].yourCall;
-			if (yc != null) addLine(endSec, yc / fxRate, col.you, false, 2);
+			addSeries(forecast.series[h].consensus, STEP[h], col.base, true, 1);
+			addSeries(forecast.series[h].you, STEP[h], col.you, false, 2);
 		}
 		chart.timeScale().fitContent();
 	}

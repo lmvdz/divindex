@@ -54,11 +54,18 @@ export interface HorizonState {
 	calls: number;
 }
 
+export interface PredPoint {
+	t: number; // settlement time, seconds (UTCTimestamp)
+	v: number; // predicted value, in Exalted (client converts to quote)
+}
+
 export interface Forecast {
 	currencyApiId: string;
 	currencyName: string;
 	price: number;
 	horizons: Record<Horizon, HorizonState>;
+	// prediction history over time, per horizon, for charting as a series
+	series: Record<Horizon, { you: PredPoint[]; consensus: PredPoint[] }>;
 }
 
 export interface Economy {
