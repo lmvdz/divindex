@@ -1,0 +1,21 @@
+name: Discord digest
+
+on:
+  schedule:
+    - cron: '0 17 * * *' # 17:00 UTC daily
+  workflow_dispatch: {} # manual "Run workflow" button
+
+concurrency:
+  group: discord-digest
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post economy digest to Discord
+        run: |
+          resp=$(curl -fsS "https://divindex.com/api/discord/digest?token=${{ secrets.DIGEST_TOKEN }}")
+          echo "Response: $resp"
+          echo "$resp" | grep -q '"posted":true' || { echo "::error::Digest was not posted (check DIGEST_TOKEN matches the Cloudflare secret)"; exit 1; }
