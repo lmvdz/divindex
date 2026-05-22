@@ -57,14 +57,13 @@
 		| import('lightweight-charts').ISeriesApi<'Candlestick'>
 		| import('lightweight-charts').ISeriesApi<'Line'>;
 	type LineApi = import('lightweight-charts').ISeriesApi<'Line'>;
-	type PriceLine = import('lightweight-charts').IPriceLine;
 	let lcRef: typeof import('lightweight-charts') | undefined;
 	let chart: ChartApi | undefined;
 	let series: AnySeries | undefined;
 	let emaSeries: LineApi | undefined;
 	let volSeries: import('lightweight-charts').ISeriesApi<'Histogram'> | undefined;
 	let seriesKind = $state<'line' | 'candle'>('candle');
-	let lines: PriceLine[] = [];
+	let fcLines: LineApi[] = [];
 
 	function fmtTime(sec: number): string {
 		const iso = new Date(sec * 1000).toISOString();
@@ -96,7 +95,7 @@
 
 	function setupSeries(kind: 'line' | 'candle') {
 		if (!chart || !lcRef) return;
-		for (const s of [series, emaSeries]) {
+		for (const s of [series, emaSeries, ...fcLines]) {
 			if (s) {
 				try {
 					chart.removeSeries(s);
@@ -107,7 +106,7 @@
 		}
 		series = undefined;
 		emaSeries = undefined;
-		lines = [];
+		fcLines = [];
 		series =
 			kind === 'line'
 				? chart.addSeries(lcRef.LineSeries, {
@@ -189,40 +188,46 @@
 		volSeries.setData(data as never);
 	}
 
+	// Project predictions forward in time: a 2-point line from the last actual
+	// price to each horizon's predicted value at its settlement timestamp.
 	function drawForecast() {
-		if (!ready || !series || !lcRef) return;
-		for (const l of lines) series.removePriceLine(l);
-		lines = [];
-		if (!forecast) return;
-		for (const h of ['hour', 'day', 'week'] as Horizon[]) {
-			const col = HORIZON_COLORS[h];
-			const cons = forecast.horizons[h].consensus;
-			if (cons != null) {
-				lines.push(
-					series.createPriceLine({
-						price: cons / fxRate,
-						color: col.base,
-						lineWidth: 1,
-						lineStyle: lcRef.LineStyle.Dashed,
-						axisLabelVisible: true,
-						title: `${col.label} cons`
-					})
-				);
-			}
-			const yc = forecast.horizons[h].yourCall;
-			if (yc != null) {
-				lines.push(
-					series.createPriceLine({
-						price: yc / fxRate,
-						color: col.you,
-						lineWidth: 2,
-						lineStyle: lcRef.LineStyle.Solid,
-						axisLabelVisible: true,
-						title: `${col.label} you`
-					})
-				);
+		if (!ready || !chart || !lcRef) return;
+		for (const s of fcLines) {
+			try {
+				chart.removeSeries(s);
+			} catch {
+				/* gone */
 			}
 		}
+		fcLines = [];
+		if (!forecast || candles.length === 0) return;
+		const last = candles[candles.length - 1];
+		const anchor = { time: last.time, value: last.close };
+
+		const addLine = (endSec: number, value: number, color: string, dashed: boolean, width: 1 | 2) => {
+			if (!chart || !lcRef || endSec <= last.time) return;
+			const s = chart.addSeries(lcRef.LineSeries, {
+				color,
+				lineWidth: width,
+				lineStyle: dashed ? lcRef.LineStyle.Dashed : lcRef.LineStyle.Solid,
+				lastValueVisible: true,
+				priceLineVisible: false,
+				crosshairMarkerVisible: false,
+				pointMarkersVisible: true
+			});
+			s.setData([anchor, { time: endSec, value }] as never);
+			fcLines.push(s);
+		};
+
+		for (const h of ['hour', 'day', 'week'] as Horizon[]) {
+			const col = HORIZON_COLORS[h];
+			const endSec = Math.floor(forecast.horizons[h].end / 1000);
+			const cons = forecast.horizons[h].consensus;
+			if (cons != null) addLine(endSec, cons / fxRate, col.base, true, 1);
+			const yc = forecast.horizons[h].yourCall;
+			if (yc != null) addLine(endSec, yc / fxRate, col.you, false, 2);
+		}
+		chart.timeScale().fitContent();
 	}
 
 	async function loadCandles(id: number, tf: Timeframe): Promise<Candle[]> {
