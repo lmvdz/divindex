@@ -8,12 +8,6 @@
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
 	},
-	"observability": { "enabled": true }
-
-	// --- Persistent forecasts (Cloudflare KV) ---
-	// Workers have no filesystem, so the forecast store uses KV when bound and
-	// falls back to in-memory (non-persistent) otherwise. To enable persistence:
-	//   1) wrangler kv namespace create FORECAST_KV
-	//   2) add the returned id below and redeploy:
-	// "kv_namespaces": [{ "binding": "FORECAST_KV", "id": "<your-kv-namespace-id>" }]
+	"observability": { "enabled": true },
+	"kv_namespaces": [{ "binding": "FORECAST_KV", "id": "28d4cc0075634c3e8df241acb19f2493" }]
 }
