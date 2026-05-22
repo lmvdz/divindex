@@ -1,13 +1,16 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { fmt, compact, signStr, signClass, ticker } from '$lib/format';
 	import {
 		convertMarket,
+		divineRate,
 		effectiveQuote,
 		QUOTE_LABEL,
 		QUOTE_SHORT,
 		type Quote
 	} from '$lib/convert';
 	import ItemIcon from '$lib/components/ItemIcon.svelte';
+	import PriceChart from '$lib/components/PriceChart.svelte';
 	import { showTip, moveTip, hideTip } from '$lib/tooltip.svelte';
 	import type { Currency } from '$lib/types';
 	import type { PageData } from './$types';
@@ -17,11 +20,17 @@
 	const market = $derived(convertMarket(data.market, quote));
 	const QUOTES: Quote[] = ['exalted', 'divine'];
 
+	// raw (Exalted) lookups for the inline chart, which converts itself
+	const rawById = $derived(new Map(data.market.currencies.map((c) => [c.id, c])));
+	const divineId = $derived(data.market.currencies.find((c) => c.apiId === 'divine')?.id ?? 0);
+	const dRate = $derived(divineRate(data.market));
+
 	type SortKey = 'name' | 'price' | 'change1dPct' | 'changePct' | 'high' | 'low' | 'volume';
 	let sortKey = $state<SortKey>('price');
 	let dir = $state<1 | -1>(-1);
 	let q = $state('');
 	let cat = $state('all');
+	let expandedId = $state<number | null>(null);
 
 	const cats = $derived(['all', ...data.market.categories]);
 
@@ -49,6 +58,18 @@
 			sortKey = k;
 			dir = k === 'name' ? 1 : -1;
 		}
+	}
+
+	function open(c: Currency) {
+		hideTip();
+		goto(`/?c=${c.apiId}`);
+	}
+	function toggle(id: number) {
+		expandedId = expandedId === id ? null : id;
+		hideTip();
+	}
+	function fxFor(apiId: string): number {
+		return effectiveQuote(apiId, quote) === 'exalted' ? 1 : dRate;
 	}
 
 	function spark(c: Currency): string {
@@ -114,6 +135,7 @@
 			<table class="scr-table">
 				<thead>
 					<tr>
+						<th class="chev-col"></th>
 						<th class="num">#</th>
 						<th><button onclick={() => setSort('name')}>Market {arrow('name')}</button></th>
 						<th class="hide-sm">Type</th>
@@ -129,24 +151,51 @@
 				<tbody>
 					{#each rows as c, i (c.id)}
 						<tr
+							class="scr-row"
+							class:expanded={expandedId === c.id}
+							role="button"
+							tabindex="0"
+							onclick={() => open(c)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									open(c);
+								}
+							}}
 							onmouseenter={(e) =>
 								showTip(c, e.clientX, e.clientY, QUOTE_SHORT[effectiveQuote(c.apiId, quote)])}
 							onmousemove={(e) => moveTip(e.clientX, e.clientY)}
 							onmouseleave={hideTip}
 						>
+							<td class="chev-col">
+								<button
+									class="chev"
+									class:open={expandedId === c.id}
+									aria-label="Toggle inline chart"
+									aria-expanded={expandedId === c.id}
+									onclick={(e) => {
+										e.stopPropagation();
+										toggle(c.id);
+									}}
+								>
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+									</svg>
+								</button>
+							</td>
 							<td class="num idx">{i + 1}</td>
 							<td>
-								<a class="scr-name" href={`/?c=${c.apiId}`}>
+								<span class="scr-name">
 									<ItemIcon apiId={c.apiId} icon={c.icon} size={22} chip="sym" />
 									<span class="nm">{c.name}</span>
-								</a>
+								</span>
 							</td>
 							<td class="hide-sm"><span class="cat-tag">{c.category}</span></td>
 							<td class="num pr">{fmt(c.price)}{#if effectiveQuote(c.apiId, quote) !== quote}<small
 										class="unit">{QUOTE_SHORT[effectiveQuote(c.apiId, quote)]}</small
 									>{/if}</td>
-							<td class="num {signClass(c.change1dPct)}">{signStr(c.change1dPct)}</td>
-							<td class="num {signClass(c.changePct)}">{signStr(c.changePct)}</td>
+							<td class="num cell {signClass(c.change1dPct)}">{signStr(c.change1dPct)}</td>
+							<td class="num cell {signClass(c.changePct)}">{signStr(c.changePct)}</td>
 							<td class="num hide-sm">{fmt(c.high)}</td>
 							<td class="num hide-sm">{fmt(c.low)}</td>
 							<td class="num hide-sm">{compact(c.volume)}</td>
@@ -158,8 +207,25 @@
 								{/if}
 							</td>
 						</tr>
+						{#if expandedId === c.id}
+							{@const raw = rawById.get(c.id) ?? c}
+							<tr class="expand-row">
+								<td colspan="11">
+									<div class="expand-chart">
+										<PriceChart
+											currency={raw}
+											{quote}
+											{divineId}
+											fxRate={fxFor(raw.apiId)}
+											forecast={null}
+											activeHorizon="day"
+										/>
+									</div>
+								</td>
+							</tr>
+						{/if}
 					{:else}
-						<tr><td colspan="10" class="scr-empty">No currency matches “{q}”.</td></tr>
+						<tr><td colspan="11" class="scr-empty">No currency matches “{q}”.</td></tr>
 					{/each}
 				</tbody>
 			</table>

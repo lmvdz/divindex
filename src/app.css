@@ -1188,6 +1188,66 @@ a {
 	font-size: 0.76rem;
 	text-align: center;
 }
+.scr-row {
+	cursor: pointer;
+}
+.scr-row:focus-visible {
+	outline: none;
+	box-shadow: inset var(--ring);
+}
+.scr-row:hover .nm {
+	color: var(--gold);
+}
+.scr-row.expanded {
+	background: var(--surface);
+}
+.chev-col {
+	width: 36px;
+	text-align: center;
+}
+.chev {
+	background: none;
+	border: 0;
+	color: var(--faint);
+	cursor: pointer;
+	padding: 4px;
+	display: inline-flex;
+	border-radius: 6px;
+}
+.chev svg {
+	width: 16px;
+	height: 16px;
+	transition: transform 0.18s var(--ease);
+}
+.chev:hover {
+	color: var(--text);
+}
+.chev.open {
+	color: var(--gold);
+}
+.chev.open svg {
+	transform: rotate(180deg);
+}
+.chev:focus-visible {
+	outline: none;
+	box-shadow: var(--ring);
+}
+.scr-table tbody td.cell.up {
+	background: rgba(102, 207, 138, 0.08);
+}
+.scr-table tbody td.cell.down {
+	background: rgba(229, 113, 112, 0.08);
+}
+.expand-row td {
+	padding: 0;
+	background: var(--bg);
+	border-bottom: 1px solid var(--border);
+}
+.expand-chart {
+	height: 340px;
+	display: flex;
+	padding: 6px 10px 10px;
+}
 @media (max-width: 680px) {
 	.hide-sm {
 		display: none;
