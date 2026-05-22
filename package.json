@@ -25,6 +25,7 @@
 	},
 	"dependencies": {
 		"@auth/sveltekit": "^1.11.2",
+		"@cf-wasm/og": "^0.3.8",
 		"lightweight-charts": "^5.0.0"
 	}
 }
