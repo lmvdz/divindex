@@ -166,6 +166,8 @@
 					{divineId}
 					{fxRate}
 					{forecast}
+					dispPrice={selectedView.price}
+					dispChange={selectedView.change1dPct}
 					ontimeframe={(tf) => {
 						const h = TF_TO_HORIZON[tf];
 						if (h) activeHorizon = h;

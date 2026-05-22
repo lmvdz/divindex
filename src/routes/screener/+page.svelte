@@ -243,6 +243,8 @@
 											{divineId}
 											fxRate={fxFor(raw.apiId)}
 											forecast={null}
+											dispPrice={c.price}
+											dispChange={c.change1dPct}
 										/>
 									</div>
 								</td>

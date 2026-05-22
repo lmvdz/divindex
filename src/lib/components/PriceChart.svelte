@@ -12,6 +12,8 @@
 		divineId,
 		fxRate,
 		forecast,
+		dispPrice,
+		dispChange,
 		ontimeframe
 	}: {
 		currency: Currency;
@@ -19,6 +21,8 @@
 		divineId: number;
 		fxRate: number;
 		forecast: Forecast | null;
+		dispPrice?: number; // canonical (converted) headline price — matches sidebar/stats
+		dispChange?: number; // canonical 24h change
 		ontimeframe?: (tf: Timeframe) => void;
 	} = $props();
 
@@ -73,16 +77,15 @@
 	}
 
 	function resetLegend() {
+		// Headline price/change use the canonical currency value (same source as the
+		// sidebar/screener/stats) so they always agree across the app. Candles are the
+		// detailed hourly history; the crosshair shows per-bar values on hover.
+		legPrice = dispPrice ?? currency.price / fxRate;
+		legChg = dispChange ?? currency.change1dPct;
 		if (candles.length) {
-			const last = candles[candles.length - 1];
-			const prev = candles.length > 1 ? candles[candles.length - 2] : last;
-			legPrice = last.close;
-			legChg = prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0;
-			legDate = fmtTime(last.time);
-			legVol = last.volume;
+			legDate = fmtTime(candles[candles.length - 1].time);
+			legVol = candles[candles.length - 1].volume;
 		} else {
-			legPrice = currency.price / fxRate;
-			legChg = currency.change1dPct;
 			legDate = '';
 			legVol = 0;
 		}
@@ -303,7 +306,24 @@
 		try {
 			let cs = await loadCandles(c.id, tf);
 			if (!cs.length) cs = synth(c);
-			if (effectiveQuote(c.apiId, q) === 'divine' && c.apiId !== 'divine') {
+			if (c.apiId === 'exalted') {
+				// Exalted is the base unit (flat 1.0 in Exalted), so its real movement
+				// against Divine IS the inverse of Divine's candle. Invert the OHLC
+				// (high/low swap on inversion) so we render proper candles, not dojis.
+				const dc = await loadCandles(divineId, tf);
+				if (dc.length) {
+					const inv = (x: number) => (x ? 1 / x : 0);
+					const volByT = new Map(cs.map((k) => [k.time, k.volume]));
+					cs = dc.map((d) => ({
+						time: d.time,
+						open: inv(d.open),
+						high: inv(d.low),
+						low: inv(d.high),
+						close: inv(d.close),
+						volume: volByT.get(d.time) ?? d.volume
+					}));
+				}
+			} else if (effectiveQuote(c.apiId, q) === 'divine' && c.apiId !== 'divine') {
 				const dc = await loadCandles(divineId, tf);
 				const byT = new Map(dc.map((k) => [k.time, k.close]));
 				const fallback = dc.length ? dc[dc.length - 1].close : fxRate || 1;
