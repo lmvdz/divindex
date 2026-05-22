@@ -1,22 +1,30 @@
 import { SvelteKitAuth, type SvelteKitAuthConfig } from '@auth/sveltekit';
 import Discord from '@auth/sveltekit/providers/discord';
-import { env } from '$env/dynamic/private';
+import { env as devEnv } from '$env/dynamic/private';
 import type { OAuthConfig } from '@auth/core/providers';
+
+type Env = Record<string, string | undefined>;
+
+// On Cloudflare Workers, runtime secrets/vars live on platform.env (the same
+// place KV bindings come from). $env/dynamic/private doesn't reliably surface
+// dashboard secrets there, so prefer platform.env and fall back to .env in dev.
+function readEnv(platform: App.Platform | undefined): Env {
+	const pe = (platform?.env ?? {}) as unknown as Env;
+	return { ...(devEnv as Env), ...pe };
+}
 
 interface PoeProfile {
 	uuid?: string;
 	name: string;
 }
 
-// GGG has no off-the-shelf Auth.js provider — wire its OAuth 2.1 endpoints
-// directly. One GGG account covers PoE1 + PoE2, so this is "Sign in with PoE".
-function poeProvider(): OAuthConfig<PoeProfile> {
+function poeProvider(e: Env): OAuthConfig<PoeProfile> {
 	return {
 		id: 'poe',
 		name: 'Path of Exile',
 		type: 'oauth',
-		clientId: env.AUTH_POE_ID,
-		clientSecret: env.AUTH_POE_SECRET,
+		clientId: e.AUTH_POE_ID,
+		clientSecret: e.AUTH_POE_SECRET,
 		authorization: {
 			url: 'https://www.pathofexile.com/oauth/authorize',
 			params: { scope: 'account:profile' }
@@ -41,25 +49,27 @@ function poeProvider(): OAuthConfig<PoeProfile> {
 	};
 }
 
-export function providerIds(): string[] {
+export function providerIds(platform?: App.Platform): string[] {
+	const e = readEnv(platform);
 	const ids: string[] = [];
-	if (env.AUTH_DISCORD_ID) ids.push('discord');
-	if (env.AUTH_POE_ID) ids.push('poe');
+	if (e.AUTH_DISCORD_ID) ids.push('discord');
+	if (e.AUTH_POE_ID) ids.push('poe');
 	return ids;
 }
-export function authConfigured(): boolean {
-	return providerIds().length > 0;
+export function authConfigured(platform?: App.Platform): boolean {
+	return providerIds(platform).length > 0;
 }
 
-// Build config per-request: on Cloudflare, $env/dynamic/private is only
-// populated at request time, not at module load.
-export const { handle, signIn, signOut } = SvelteKitAuth(async (): Promise<SvelteKitAuthConfig> => {
+export const { handle, signIn, signOut } = SvelteKitAuth(async (event): Promise<SvelteKitAuthConfig> => {
+	const e = readEnv(event?.platform);
 	const providers: SvelteKitAuthConfig['providers'] = [];
-	if (env.AUTH_DISCORD_ID) providers.push(Discord);
-	if (env.AUTH_POE_ID) providers.push(poeProvider());
+	if (e.AUTH_DISCORD_ID) {
+		providers.push(Discord({ clientId: e.AUTH_DISCORD_ID, clientSecret: e.AUTH_DISCORD_SECRET }));
+	}
+	if (e.AUTH_POE_ID) providers.push(poeProvider(e));
 	return {
 		trustHost: true,
-		secret: env.AUTH_SECRET || 'divindex-dev-secret-override-in-production',
+		secret: e.AUTH_SECRET || 'divindex-dev-secret-override-in-production',
 		providers,
 		callbacks: {
 			session({ session, token }) {
