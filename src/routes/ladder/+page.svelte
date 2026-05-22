@@ -3,6 +3,7 @@
 	import { compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
 	import { BADGES, RARITY_COLOR, badgeById } from '$lib/badges';
+	import { ladderUrl, shareOrCopy, tweetIntent } from '$lib/share';
 	import type { Horizon, Ladder } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -34,6 +35,18 @@
 
 	const pct = (x: number) => `${Math.round(x * 100)}%`;
 	const hitRate = (hits: number, calls: number) => (calls ? hits / calls : 0);
+
+	let shareMsg = $state('');
+	const brag = $derived(
+		ladder.you
+			? `I'm ${ladder.yourRank ? `#${ladder.yourRank}` : 'on the board'} on the Divindex Ladder — ${pct(hitRate(ladder.you.hits, ladder.you.calls))} direction forecasting the PoE2 economy 🔮`
+			: 'Forecast the Path of Exile 2 economy and climb the Divindex Ladder 🔮'
+	);
+	async function doShare() {
+		const r = await shareOrCopy(brag, ladderUrl());
+		shareMsg = r === 'copied' ? 'Link copied!' : r === 'failed' ? 'Could not share.' : '';
+		if (shareMsg) setTimeout(() => (shareMsg = ''), 2000);
+	}
 
 	// the signed-in player's earned badges (full metadata), for the standing card
 	const myBadges = $derived(
@@ -113,6 +126,11 @@
 						{/each}
 					</div>
 				{/if}
+				<div class="st-share">
+					<button class="share-btn" onclick={doShare}>↗ Share</button>
+					<a class="share-btn x" href={tweetIntent(brag, ladderUrl())} target="_blank" rel="noopener">Post on X</a>
+					{#if shareMsg}<span class="share-msg">{shareMsg}</span>{/if}
+				</div>
 			</section>
 		{/if}
 

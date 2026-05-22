@@ -3,6 +3,7 @@
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
 	import { RARITY_COLOR, badgeById } from '$lib/badges';
+	import { ladderUrl, shareOrCopy, tweetIntent } from '$lib/share';
 	import type { Calibration, Forecast, Horizon, PlayerStats } from '$lib/types';
 
 	let {
@@ -41,6 +42,18 @@
 	const myAcc = $derived(stats && stats.calls ? stats.accSum / stats.calls : 0);
 	const myDir = $derived(stats && stats.calls ? stats.hits / stats.calls : 0);
 	const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+	let shareMsg = $state('');
+	const brag = $derived(
+		stats
+			? `I'm ${rank ? `#${rank}` : 'on the board'} on the Divindex Ladder — ${pct(myDir)} direction, ${pct(myAcc)} accuracy forecasting the PoE2 economy 🔮`
+			: ''
+	);
+	async function doShare() {
+		const r = await shareOrCopy(brag, ladderUrl());
+		shareMsg = r === 'copied' ? 'Link copied!' : r === 'failed' ? 'Could not share.' : '';
+		if (shareMsg) setTimeout(() => (shareMsg = ''), 2000);
+	}
 
 	const TABS: { id: Horizon; label: string; long: string }[] = [
 		{ id: 'hour', label: '1H', long: 'hour' },
@@ -124,6 +137,11 @@
 				<span class="sc-rank">Rank <b class="mono">{rank ? `#${rank}` : '—'}</b></span>
 				<span class="sc-omens"><b class="mono">{compact(stats.points)}</b> Omens</span>
 				<a class="sc-link" href="/ladder">Ladder →</a>
+			</div>
+			<div class="sc-share">
+				<button class="share-btn" onclick={doShare}>↗ Share</button>
+				<a class="share-btn x" href={tweetIntent(brag, ladderUrl())} target="_blank" rel="noopener">Post on X</a>
+				{#if shareMsg}<span class="share-msg">{shareMsg}</span>{/if}
 			</div>
 			<div class="sc-stats">
 				<span>Dir <b class="mono">{pct(myDir)}</b></span>
