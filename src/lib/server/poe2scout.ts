@@ -77,7 +77,14 @@ interface RawItem {
 	ApiId: string;
 	Text: string;
 	IconUrl?: string;
-	ItemMetadata?: { icon?: string };
+	ItemMetadata?: {
+		icon?: string;
+		base_type?: string;
+		stack_size?: number;
+		max_stack_size?: number;
+		description?: string;
+		effect?: string[];
+	};
 	PriceLogs?: RawLog[];
 }
 
@@ -104,6 +111,15 @@ function toCurrency(it: RawItem, category: string): Currency | null {
 		name: it.Text,
 		category,
 		icon: it.IconUrl ?? it.ItemMetadata?.icon ?? '',
+		meta: it.ItemMetadata
+			? {
+					baseType: it.ItemMetadata.base_type,
+					stackSize: it.ItemMetadata.stack_size,
+					maxStackSize: it.ItemMetadata.max_stack_size,
+					description: it.ItemMetadata.description,
+					effect: it.ItemMetadata.effect
+				}
+			: undefined,
 		price: last.p,
 		changePct: first.p ? round(((last.p - first.p) / first.p) * 100) : 0,
 		change1dPct: prev.p ? round(((last.p - prev.p) / prev.p) * 100) : 0,

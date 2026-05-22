@@ -8,6 +8,7 @@
 		type Quote
 	} from '$lib/convert';
 	import ItemIcon from '$lib/components/ItemIcon.svelte';
+	import { showTip, moveTip, hideTip } from '$lib/tooltip.svelte';
 	import type { Currency } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -127,7 +128,12 @@
 				</thead>
 				<tbody>
 					{#each rows as c, i (c.id)}
-						<tr>
+						<tr
+							onmouseenter={(e) =>
+								showTip(c, e.clientX, e.clientY, QUOTE_LABEL[effectiveQuote(c.apiId, quote)])}
+							onmousemove={(e) => moveTip(e.clientX, e.clientY)}
+							onmouseleave={hideTip}
+						>
 							<td class="num idx">{i + 1}</td>
 							<td>
 								<a class="scr-name" href={`/?c=${c.apiId}`}>

@@ -4,12 +4,21 @@ export interface PricePoint {
 	q?: number; // daily quantity (listings) — volume proxy
 }
 
+export interface ItemMeta {
+	baseType?: string;
+	stackSize?: number;
+	maxStackSize?: number;
+	description?: string;
+	effect?: string[];
+}
+
 export interface Currency {
 	id: number;
 	apiId: string;
 	name: string;
 	category: string;
 	icon: string;
+	meta?: ItemMeta;
 	price: number;
 	changePct: number; // over full window
 	change1dPct: number; // last vs previous day
