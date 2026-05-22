@@ -17,16 +17,16 @@ async function sessionUser(locals: App.Locals) {
 	return user?.id ? { id: user.id, name: user.name ?? 'Exile' } : null;
 }
 
-export const GET: RequestHandler = async ({ url, cookies, locals }) => {
+export const GET: RequestHandler = async ({ url, cookies, locals, platform }) => {
 	const user = await sessionUser(locals);
 	const pid = user ? `u:${user.id}` : cookies.get('dx_pid');
 	const market = await getMarket();
 	const c = pick(market, url.searchParams.get('currency'));
 	if (!c) return json({ error: 'No market' }, { status: 503 });
-	return json(getForecast(pid, c.apiId, c.name, c.price));
+	return json(await getForecast(platform, pid, c.apiId, c.name, c.price));
 };
 
-export const POST: RequestHandler = async ({ request, cookies, locals }) => {
+export const POST: RequestHandler = async ({ request, cookies, locals, platform }) => {
 	const body = (await request.json().catch(() => ({}))) as {
 		currency?: string;
 		horizon?: Horizon;
@@ -57,8 +57,8 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 		return json({ error: 'Sign in to forecast.' }, { status: 401 });
 	}
 
-	addCall(pid, name, body.currency, body.horizon, predicted);
+	await addCall(platform, pid, name, body.currency, body.horizon, predicted);
 	const market = await getMarket();
 	const c = pick(market, body.currency);
-	return json(getForecast(pid, c.apiId, c.name, c.price));
+	return json(await getForecast(platform, pid, c.apiId, c.name, c.price));
 };

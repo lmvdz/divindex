@@ -1,10 +1,9 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import type { Forecast, Horizon, HorizonState } from '$lib/types';
 
-// JSON-file store for the free per-currency, multi-horizon forecast game.
-// Swap for a real DB when it grows; the shape is stable.
-const DIR = '.data';
-const FILE = `${DIR}/forecast.json`;
+// Cloudflare Workers have no filesystem, so the forecast store lives in KV
+// (binding FORECAST_KV) when available, with an in-memory fallback for local
+// dev / when KV isn't bound. The whole DB is a single JSON blob under one key.
+const KEY = 'forecast';
 const HORIZONS: Horizon[] = ['hour', 'day', 'week'];
 
 interface Call {
@@ -25,26 +24,31 @@ interface DB {
 	epochs: Epoch[];
 }
 
-function load(): DB {
-	try {
-		return JSON.parse(readFileSync(FILE, 'utf8')) as DB;
-	} catch {
-		return { epochs: [] };
-	}
+type KV = {
+	get(key: string, type: 'json'): Promise<unknown>;
+	put(key: string, value: string): Promise<void>;
+};
+type Plat = App.Platform | undefined;
+
+let memDB: DB = { epochs: [] };
+
+function kvOf(platform: Plat): KV | undefined {
+	return platform?.env?.FORECAST_KV;
 }
-function save(db: DB) {
-	mkdirSync(DIR, { recursive: true });
-	// keep the file bounded: drop the oldest settled epochs
+async function load(kv: KV | undefined): Promise<DB> {
+	if (kv) return ((await kv.get(KEY, 'json')) as DB | null) ?? { epochs: [] };
+	return memDB;
+}
+async function save(kv: KV | undefined, db: DB): Promise<void> {
 	if (db.epochs.length > 2000) {
 		db.epochs.sort((a, b) => b.end - a.end);
 		db.epochs = db.epochs.slice(0, 2000);
 	}
-	writeFileSync(FILE, JSON.stringify(db));
+	if (kv) await kv.put(KEY, JSON.stringify(db));
+	else memDB = db;
 }
 
 // Settlement target = end of the *next full* epoch, never the in-progress one.
-// The current period is already partly known (you could watch it near the close),
-// so we skip it: forecasts always resolve a period that hasn't started yet.
 function epochEnd(h: Horizon, now = Date.now()): number {
 	const d = new Date(now);
 	if (h === 'hour') {
@@ -55,7 +59,7 @@ function epochEnd(h: Horizon, now = Date.now()): number {
 	}
 	const base = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 	const day = base.getUTCDay();
-	base.setUTCDate(base.getUTCDate() + (day === 0 ? 7 : 7 - day) + 7); // Sunday after next
+	base.setUTCDate(base.getUTCDate() + (day === 0 ? 7 : 7 - day) + 7);
 	return base.getTime();
 }
 
@@ -66,16 +70,17 @@ function median(xs: number[]): number | null {
 	return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-export function getForecast(
+export async function getForecast(
+	platform: Plat,
 	pid: string | undefined,
 	currencyApiId: string,
 	currencyName: string,
 	price: number
-): Forecast {
-	const db = load();
+): Promise<Forecast> {
+	const kv = kvOf(platform);
+	const db = await load(kv);
 	let changed = false;
 
-	// lazily settle this currency's past epochs against the latest known price
 	for (const e of db.epochs) {
 		if (e.currencyApiId === currencyApiId && !e.settled && e.end < Date.now()) {
 			e.settled = { actual: price, at: Date.now() };
@@ -83,8 +88,7 @@ export function getForecast(
 		}
 	}
 
-	// read-only: do NOT create empty epochs here (only addCall creates them),
-	// otherwise merely viewing currencies bloats the store with empties.
+	// read-only: do NOT create empty epochs here (only addCall creates them)
 	const horizons = {} as Record<Horizon, HorizonState>;
 	for (const h of HORIZONS) {
 		const end = epochEnd(h);
@@ -99,20 +103,22 @@ export function getForecast(
 			calls: calls.length
 		};
 	}
-	if (changed) save(db);
+	if (changed) await save(kv, db);
 
 	return { currencyApiId, currencyName, price, horizons };
 }
 
-export function addCall(
+export async function addCall(
+	platform: Plat,
 	pid: string,
 	name: string,
 	currencyApiId: string,
 	horizon: Horizon,
 	predicted: number
-): void {
+): Promise<void> {
 	if (!HORIZONS.includes(horizon)) return;
-	const db = load();
+	const kv = kvOf(platform);
+	const db = await load(kv);
 	const end = epochEnd(horizon);
 	const key = `${currencyApiId}:${horizon}:${end}`;
 	let e = db.epochs.find((x) => x.key === key);
@@ -128,5 +134,5 @@ export function addCall(
 	} else {
 		e.calls.push({ pid, name, predicted, at: Date.now() });
 	}
-	save(db);
+	await save(kv, db);
 }

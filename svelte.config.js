@@ -1,4 +1,4 @@
-import adapter from '@sveltejs/adapter-node';
+import adapter from '@sveltejs/adapter-cloudflare';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -7,8 +7,8 @@ const config = {
 		runes: ({ filename }) => (filename.split(/[/\\]/).includes('node_modules') ? undefined : true)
 	},
 	kit: {
-		// adapter-node builds a portable server (`node build`) and deploys anywhere.
-		// Swap to adapter-vercel / -netlify / -cloudflare for divindex.com if preferred.
+		// Cloudflare Workers/Pages. KV binding (FORECAST_KV) powers the forecast store;
+		// see wrangler.jsonc. Falls back to in-memory when KV isn't bound.
 		adapter: adapter()
 	}
 };
