@@ -454,6 +454,10 @@ a {
 	font: 500 0.82rem var(--mono);
 	color: #8aa9c9;
 }
+.cl-vol {
+	font: 500 0.78rem var(--mono);
+	color: var(--faint);
+}
 .chart-canvas {
 	flex: 1;
 	min-height: 0;

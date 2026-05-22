@@ -259,19 +259,20 @@ export async function getHistory(
 
 		const pts = (res.PriceHistory ?? [])
 			.filter((p) => typeof p?.Price === 'number')
-			.map((p) => ({ ms: new Date(`${p.Time}Z`).getTime(), price: p.Price }))
+			.map((p) => ({ ms: new Date(`${p.Time}Z`).getTime(), price: p.Price, q: p.Quantity ?? 0 }))
 			.filter((p) => Number.isFinite(p.ms))
 			.sort((a, b) => a.ms - b.ms);
 
-		const buckets = new Map<number, { o: number; h: number; l: number; c: number }>();
+		const buckets = new Map<number, { o: number; h: number; l: number; c: number; vol: number }>();
 		for (const p of pts) {
 			const t = bucketStart(p.ms, tf);
 			const cur = buckets.get(t);
-			if (!cur) buckets.set(t, { o: p.price, h: p.price, l: p.price, c: p.price });
+			if (!cur) buckets.set(t, { o: p.price, h: p.price, l: p.price, c: p.price, vol: p.q });
 			else {
 				cur.h = Math.max(cur.h, p.price);
 				cur.l = Math.min(cur.l, p.price);
 				cur.c = p.price;
+				cur.vol += p.q;
 			}
 		}
 		const candles: Candle[] = [...buckets.entries()]
@@ -281,7 +282,8 @@ export async function getHistory(
 				open: round(v.o),
 				high: round(v.h),
 				low: round(v.l),
-				close: round(v.c)
+				close: round(v.c),
+				volume: Math.round(v.vol)
 			}));
 
 		const data: History = { id: itemId, tf, candles };

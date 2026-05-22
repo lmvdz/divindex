@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Candle, Currency, Forecast, Horizon, Timeframe } from '$lib/types';
-	import { fmt, signStr, signClass, ticker } from '$lib/format';
+	import { fmt, compact, signStr, signClass, ticker } from '$lib/format';
 	import { effectiveQuote, QUOTE_LABEL, type Quote } from '$lib/convert';
 
 	let {
@@ -47,6 +47,7 @@
 	let legPrice = $state(0);
 	let legChg = $state(0);
 	let legDate = $state('');
+	let legVol = $state(0);
 	let emaLast = $state<number | null>(null);
 
 	type ChartApi = import('lightweight-charts').IChartApi;
@@ -59,6 +60,7 @@
 	let chart: ChartApi | undefined;
 	let series: AnySeries | undefined;
 	let emaSeries: LineApi | undefined;
+	let volSeries: import('lightweight-charts').ISeriesApi<'Histogram'> | undefined;
 	let seriesKind = $state<'line' | 'candle'>('candle');
 	let lines: PriceLine[] = [];
 
@@ -76,17 +78,19 @@
 			legPrice = last.close;
 			legChg = prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0;
 			legDate = fmtTime(last.time);
+			legVol = last.volume;
 		} else {
 			legPrice = currency.price / fxRate;
 			legChg = currency.change1dPct;
 			legDate = '';
+			legVol = 0;
 		}
 	}
 
 	function synth(c: Currency): Candle[] {
 		return c.series.map((p) => {
 			const t = Math.floor(new Date(`${p.t}T00:00:00Z`).getTime() / 1000);
-			return { time: t, open: p.p, high: p.p, low: p.p, close: p.p };
+			return { time: t, open: p.p, high: p.p, low: p.p, close: p.p, volume: p.q ?? 0 };
 		});
 	}
 
@@ -172,6 +176,19 @@
 		emaLast = data.length ? data[data.length - 1].value : null;
 	}
 
+	function drawVolume() {
+		if (!ready || !volSeries) return;
+		const data = candles.map((c, i) => {
+			const prev = i > 0 ? candles[i - 1].close : c.open;
+			return {
+				time: c.time,
+				value: c.volume,
+				color: c.close >= prev ? 'rgba(102,207,138,0.4)' : 'rgba(229,113,112,0.4)'
+			};
+		});
+		volSeries.setData(data as never);
+	}
+
 	function drawForecast() {
 		if (!ready || !series || !lcRef) return;
 		for (const l of lines) series.removePriceLine(l);
@@ -235,7 +252,8 @@
 						open: k.open / dv,
 						high: k.high / dv,
 						low: k.low / dv,
-						close: k.close / dv
+						close: k.close / dv,
+						volume: k.volume
 					};
 				});
 			}
@@ -245,6 +263,7 @@
 		}
 		chart?.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } });
 		paint();
+		drawVolume();
 		drawEMA();
 		drawForecast();
 	}
@@ -275,6 +294,12 @@
 					}
 				});
 				setupSeries(kindFor(timeframe));
+				volSeries = chart.addSeries(lcRef.HistogramSeries, {
+					priceFormat: { type: 'volume' },
+					priceScaleId: 'vol',
+					color: '#33405a'
+				});
+				chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
 				chart.subscribeCrosshairMove((param) => {
 					const d = series ? param.seriesData.get(series) : undefined;
 					const rec = d as unknown as { close?: number; value?: number } | undefined;
@@ -288,6 +313,7 @@
 				});
 				ready = true;
 				paint();
+				drawVolume();
 				drawEMA();
 				drawForecast();
 			} catch {
@@ -324,6 +350,9 @@
 		<span class="cl-name">{currency.name}</span>
 		<span class="cl-price">{fmt(legPrice || currency.price / fxRate)} <em>{quoteLabel}</em></span>
 		<span class="cl-chg {signClass(legChg)}">{signStr(legChg)}</span>
+		{#if legVol > 0}
+			<span class="cl-vol">Vol {compact(legVol)}</span>
+		{/if}
 		{#if emaPeriod != null && emaLast != null}
 			<span class="cl-ema">EMA{emaPeriod} {fmt(emaLast)}</span>
 		{/if}

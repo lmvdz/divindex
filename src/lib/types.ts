@@ -26,6 +26,7 @@ export interface Candle {
 	high: number;
 	low: number;
 	close: number;
+	volume: number; // summed quantity in the bucket
 }
 
 export interface History {
