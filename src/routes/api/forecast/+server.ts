@@ -58,8 +58,9 @@ export const POST: RequestHandler = async ({ request, cookies, locals, platform 
 	}
 
 	const market = await getMarket();
-	const c = pick(market, body.currency);
+	const c = market.currencies.find((x) => x.apiId === body.currency);
+	if (!c) return json({ error: 'Unknown currency.' }, { status: 400 });
 	// store the current price as the call's baseline so direction can be scored
-	await addCall(platform, pid, name, body.currency, body.horizon, predicted, c.price, market.league);
+	await addCall(platform, pid, name, c.apiId, body.horizon, predicted, c.price, market.league);
 	return json(await getForecast(platform, pid, c.apiId, c.name, c.price, market.league));
 };
