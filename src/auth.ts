@@ -51,18 +51,21 @@ export function authConfigured(): boolean {
 	return providerIds().length > 0;
 }
 
-const providers: SvelteKitAuthConfig['providers'] = [];
-if (env.AUTH_DISCORD_ID) providers.push(Discord);
-if (env.AUTH_POE_ID) providers.push(poeProvider());
-
-export const { handle, signIn, signOut } = SvelteKitAuth({
-	trustHost: true,
-	secret: env.AUTH_SECRET || 'divindex-dev-secret-override-in-production',
-	providers,
-	callbacks: {
-		session({ session, token }) {
-			if (session.user && token.sub) session.user.id = token.sub;
-			return session;
+// Build config per-request: on Cloudflare, $env/dynamic/private is only
+// populated at request time, not at module load.
+export const { handle, signIn, signOut } = SvelteKitAuth(() => {
+	const providers: SvelteKitAuthConfig['providers'] = [];
+	if (env.AUTH_DISCORD_ID) providers.push(Discord);
+	if (env.AUTH_POE_ID) providers.push(poeProvider());
+	return {
+		trustHost: true,
+		secret: env.AUTH_SECRET || 'divindex-dev-secret-override-in-production',
+		providers,
+		callbacks: {
+			session({ session, token }) {
+				if (session.user && token.sub) session.user.id = token.sub;
+				return session;
+			}
 		}
-	}
+	};
 });
