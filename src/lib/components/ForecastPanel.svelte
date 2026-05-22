@@ -5,15 +5,17 @@
 	let {
 		forecast,
 		active,
-		base,
+		unit,
+		fxRate,
 		onhorizon,
 		onsubmit
 	}: {
 		forecast: Forecast | null;
 		active: Horizon;
-		base: string;
+		unit: string;
+		fxRate: number;
 		onhorizon: (h: Horizon) => void;
-		onsubmit: (name: string, predicted: number) => Promise<{ ok: boolean; error?: string }>;
+		onsubmit: (name: string, predictedExalt: number) => Promise<{ ok: boolean; error?: string }>;
 	} = $props();
 
 	const TABS: { id: Horizon; label: string; long: string }[] = [
@@ -37,12 +39,12 @@
 	const cur = $derived(forecast ? forecast.horizons[active] : null);
 	const longLabel = $derived(TABS.find((t) => t.id === active)?.long ?? 'epoch');
 
-	// prefill the input with the existing call for this horizon/currency
+	// prefill the input with your existing call (converted to the quote unit)
 	$effect(() => {
 		active;
-		const cid = forecast?.currencyApiId;
-		void cid;
-		predicted = forecast ? forecast.horizons[active].yourCall : null;
+		fxRate;
+		const yc = forecast ? forecast.horizons[active].yourCall : null;
+		predicted = yc != null ? Math.round((yc / fxRate) * 1e4) / 1e4 : null;
 	});
 
 	function fmtCd(ms: number): string {
@@ -65,7 +67,7 @@
 			return;
 		}
 		busy = true;
-		const r = await onsubmit(name.trim(), predicted);
+		const r = await onsubmit(name.trim(), predicted * fxRate); // store in Exalted
 		busy = false;
 		msg = r.ok ? 'Call locked in.' : (r.error ?? 'Failed.');
 		msgClass = r.ok ? 'ok' : 'err';
@@ -88,17 +90,17 @@
 	</header>
 
 	{#if forecast && cur}
-		<p class="fx-q">Where will <b>{forecast.currencyName}</b> settle next {longLabel}? <em>({base})</em></p>
+		<p class="fx-q">Where will <b>{forecast.currencyName}</b> settle next {longLabel}? <em>({unit})</em></p>
 
 		<div class="fx-grid">
 			<div><span class="fc-label">Settles in</span><b class="mono">{fmtCd(cur.end - now)}</b></div>
 			<div>
 				<span class="fc-label">Consensus</span>
-				<b class="mono">{cur.consensus != null ? fmt(cur.consensus) : '—'}</b>
+				<b class="mono">{cur.consensus != null ? fmt(cur.consensus / fxRate) : '—'}</b>
 			</div>
 			<div>
 				<span class="fc-label">Your call</span>
-				<b class="mono">{cur.yourCall != null ? fmt(cur.yourCall) : '—'}</b>
+				<b class="mono">{cur.yourCall != null ? fmt(cur.yourCall / fxRate) : '—'}</b>
 			</div>
 			<div><span class="fc-label">Calls</span><b class="mono">{cur.calls}</b></div>
 		</div>
@@ -108,9 +110,9 @@
 			<input
 				class="field"
 				type="number"
-				step="0.01"
+				step="0.0001"
 				min="0"
-				placeholder="Predicted price"
+				placeholder="Predicted ({unit})"
 				bind:value={predicted}
 				aria-label="Predicted price"
 			/>

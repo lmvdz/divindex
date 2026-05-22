@@ -1,10 +1,19 @@
 <script lang="ts">
 	import { fmt, compact, signStr, signClass, ticker } from '$lib/format';
+	import {
+		convertMarket,
+		effectiveQuote,
+		QUOTE_LABEL,
+		QUOTE_SHORT,
+		type Quote
+	} from '$lib/convert';
 	import type { Currency } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
-	const market = $derived(data.market);
+	let quote = $state<Quote>('exalted');
+	const market = $derived(convertMarket(data.market, quote));
+	const QUOTES: Quote[] = ['exalted', 'divine'];
 
 	type SortKey = 'name' | 'price' | 'change1dPct' | 'changePct' | 'high' | 'low' | 'volume';
 	let sortKey = $state<SortKey>('price');
@@ -73,6 +82,14 @@
 			<a href="/screener" aria-current="page" class="active">Screener</a>
 		</nav>
 		<span class="tb-spacer"></span>
+		<div class="quote-toggle" role="group" aria-label="Quote currency">
+			<span class="qt-label">Quote</span>
+			{#each QUOTES as qq (qq)}
+				<button class:active={quote === qq} onclick={() => (quote = qq)} aria-pressed={quote === qq}>
+					{QUOTE_SHORT[qq]}
+				</button>
+			{/each}
+		</div>
 		<input class="field scr-search" type="search" placeholder="Search currency…" bind:value={q}
 			aria-label="Search currency" />
 	</header>
@@ -80,7 +97,7 @@
 	<main class="scr-body" id="main">
 		<div class="scr-meta">
 			<span class="eyebrow">Currency screener</span>
-			<span class="muted">{rows.length} of {market.currencies.length} · {market.league} · priced in {market.base}</span>
+			<span class="muted">{rows.length} of {market.currencies.length} · {market.league} · priced in {QUOTE_LABEL[quote]} (Exalt &amp; Divine quote in each other)</span>
 		</div>
 
 		<div class="scr-table-wrap">
@@ -108,7 +125,9 @@
 									<span class="nm">{c.name}</span>
 								</a>
 							</td>
-							<td class="num pr">{fmt(c.price)}</td>
+							<td class="num pr">{fmt(c.price)}{#if effectiveQuote(c.apiId, quote) !== quote}<small
+										class="unit">{QUOTE_SHORT[effectiveQuote(c.apiId, quote)]}</small
+									>{/if}</td>
 							<td class="num {signClass(c.change1dPct)}">{signStr(c.change1dPct)}</td>
 							<td class="num {signClass(c.changePct)}">{signStr(c.changePct)}</td>
 							<td class="num hide-sm">{fmt(c.high)}</td>

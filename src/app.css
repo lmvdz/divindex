@@ -612,6 +612,45 @@ a {
 	color: var(--gold);
 	background: rgba(224, 180, 101, 0.08);
 }
+.quote-toggle {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	background: var(--surface-2);
+	border: 1px solid var(--border-2);
+	border-radius: 9px;
+	padding: 2px 2px 2px 9px;
+}
+.qt-label {
+	font-size: 0.66rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--faint);
+	margin-right: 2px;
+}
+.quote-toggle button {
+	background: none;
+	border: 0;
+	color: var(--muted);
+	font: 600 0.74rem var(--mono);
+	padding: 5px 9px;
+	border-radius: 7px;
+	cursor: pointer;
+}
+.quote-toggle button.active {
+	background: rgba(224, 180, 101, 0.14);
+	color: var(--gold);
+}
+.quote-toggle button:focus-visible {
+	outline: none;
+	box-shadow: var(--ring);
+}
+.unit {
+	font-size: 0.6rem;
+	color: var(--faint);
+	margin-left: 3px;
+	font-family: var(--sans);
+}
 
 /* ---- forecast page ---- */
 .fc {

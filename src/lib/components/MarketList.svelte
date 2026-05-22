@@ -1,12 +1,19 @@
 <script lang="ts">
 	import type { Currency } from '$lib/types';
 	import { fmt, signStr, signClass, ticker } from '$lib/format';
+	import { effectiveQuote, QUOTE_SHORT, type Quote } from '$lib/convert';
 
 	let {
 		currencies,
 		selectedId,
+		quote,
 		onselect
-	}: { currencies: Currency[]; selectedId: number; onselect: (id: number) => void } = $props();
+	}: {
+		currencies: Currency[];
+		selectedId: number;
+		quote: Quote;
+		onselect: (id: number) => void;
+	} = $props();
 
 	let q = $state('');
 	let sort = $state<'price' | 'name' | 'change'>('price');
@@ -64,7 +71,11 @@
 				>
 					<span class="sym">{ticker(c.apiId)}</span>
 					<span class="nm">{c.name}</span>
-					<span class="pr">{fmt(c.price)}</span>
+					<span class="pr">
+						{fmt(c.price)}{#if effectiveQuote(c.apiId, quote) !== quote}<small class="unit"
+								>{QUOTE_SHORT[effectiveQuote(c.apiId, quote)]}</small
+							>{/if}
+					</span>
 					<span class="ch {signClass(c.change1dPct)}">{signStr(c.change1dPct)}</span>
 				</button>
 			</li>

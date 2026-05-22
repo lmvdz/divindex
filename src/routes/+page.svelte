@@ -7,24 +7,41 @@
 	import StatsPanel from '$lib/components/StatsPanel.svelte';
 	import ForecastPanel from '$lib/components/ForecastPanel.svelte';
 	import StatusBar from '$lib/components/StatusBar.svelte';
+	import {
+		convertMarket,
+		divineRate,
+		effectiveQuote,
+		QUOTE_LABEL,
+		type Quote
+	} from '$lib/convert';
 	import type { Forecast, Horizon, Market } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let market = $state<Market>(untrack(() => data.market));
+	let quote = $state<Quote>('exalted');
 
 	function pickDefault(m: Market): number {
 		const q = page.url.searchParams.get('c');
 		if (q) {
-			const byApi = m.currencies.find((c) => c.apiId === q || String(c.id) === q);
-			if (byApi) return byApi.id;
+			const hit = m.currencies.find((c) => c.apiId === q || String(c.id) === q);
+			if (hit) return hit.id;
 		}
 		return (m.currencies.find((c) => c.apiId === 'divine') ?? m.currencies[0])?.id ?? 0;
 	}
 	let selectedId = $state(untrack(() => pickDefault(data.market)));
-	const selected = $derived(
+
+	const view = $derived(convertMarket(market, quote));
+	const selectedRaw = $derived(
 		market.currencies.find((c) => c.id === selectedId) ?? market.currencies[0]
 	);
+	const selectedView = $derived(
+		view.currencies.find((c) => c.id === selectedId) ?? view.currencies[0]
+	);
+	const divineId = $derived(market.currencies.find((c) => c.apiId === 'divine')?.id ?? 0);
+	const eff = $derived(selectedRaw ? effectiveQuote(selectedRaw.apiId, quote) : 'exalted');
+	const fxRate = $derived(eff === 'exalted' ? 1 : divineRate(market));
+	const unit = $derived(QUOTE_LABEL[eff]);
 
 	let busy = $state(false);
 	async function refresh() {
@@ -42,7 +59,7 @@
 		return () => clearInterval(id);
 	});
 
-	// ---- forecast (per selected currency) ----
+	// ---- forecast (per selected currency, stored in Exalted) ----
 	let forecast = $state<Forecast | null>(null);
 	let activeHorizon = $state<Horizon>('day');
 
@@ -55,18 +72,23 @@
 		}
 	}
 	$effect(() => {
-		const c = selected;
+		const c = selectedRaw;
 		if (c) loadForecast(c.apiId);
 	});
 
-	async function submitCall(name: string, predicted: number) {
-		const c = selected;
+	async function submitCall(name: string, predictedExalt: number) {
+		const c = selectedRaw;
 		if (!c) return { ok: false, error: 'No currency.' };
 		try {
 			const res = await fetch('/api/forecast', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ currency: c.apiId, horizon: activeHorizon, name, predicted })
+				body: JSON.stringify({
+					currency: c.apiId,
+					horizon: activeHorizon,
+					name,
+					predicted: predictedExalt
+				})
 			});
 			const next = await res.json();
 			if (!res.ok) return { ok: false, error: next.error ?? 'Failed.' };
@@ -83,30 +105,46 @@
 </svelte:head>
 
 <div class="terminal">
-	<Toolbar league={market.league} fetchedAt={market.fetchedAt} onrefresh={refresh} {busy} />
+	<Toolbar
+		league={market.league}
+		fetchedAt={market.fetchedAt}
+		{quote}
+		onquote={(q) => (quote = q)}
+		onrefresh={refresh}
+		{busy}
+	/>
 
 	<div class="term-body">
 		<MarketList
-			currencies={market.currencies}
+			currencies={view.currencies}
 			{selectedId}
+			{quote}
 			onselect={(id) => (selectedId = id)}
 		/>
 
 		<main class="term-main" id="main">
-			{#if selected}
-				<PriceChart currency={selected} base={market.base} {forecast} {activeHorizon} />
+			{#if selectedRaw}
+				<PriceChart
+					currency={selectedRaw}
+					{quote}
+					{divineId}
+					{fxRate}
+					{forecast}
+					{activeHorizon}
+				/>
 			{:else}
 				<p class="term-empty">No market data available.</p>
 			{/if}
 		</main>
 
-		{#if selected}
+		{#if selectedView}
 			<div class="term-right">
-				<StatsPanel currency={selected} {market} />
+				<StatsPanel currency={selectedView} {unit} />
 				<ForecastPanel
 					{forecast}
 					active={activeHorizon}
-					base={market.base}
+					{unit}
+					{fxRate}
 					onhorizon={(h) => (activeHorizon = h)}
 					onsubmit={submitCall}
 				/>

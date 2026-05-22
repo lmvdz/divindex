@@ -2,18 +2,25 @@
 	import { onMount } from 'svelte';
 	import type { Candle, Currency, Forecast, Horizon } from '$lib/types';
 	import { fmt, signStr, signClass, ticker } from '$lib/format';
+	import { effectiveQuote, QUOTE_LABEL, type Quote } from '$lib/convert';
 
 	let {
 		currency,
-		base,
+		quote,
+		divineId,
+		fxRate,
 		forecast,
 		activeHorizon
 	}: {
 		currency: Currency;
-		base: string;
+		quote: Quote;
+		divineId: number;
+		fxRate: number;
 		forecast: Forecast | null;
 		activeHorizon: Horizon;
 	} = $props();
+
+	const quoteLabel = $derived(QUOTE_LABEL[effectiveQuote(currency.apiId, quote)]);
 
 	let el = $state<HTMLDivElement>();
 	let ready = $state(false);
@@ -43,7 +50,7 @@
 			legChg = prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0;
 			legDate = last.time;
 		} else {
-			legPrice = currency.price;
+			legPrice = currency.price / fxRate;
 			legChg = currency.change1dPct;
 			legDate = '';
 		}
@@ -71,7 +78,7 @@
 			if (c != null) {
 				lines.push(
 					series.createPriceLine({
-						price: c,
+						price: c / fxRate,
 						color: '#c2913f',
 						lineWidth: 1,
 						lineStyle: LSEnum.Dashed,
@@ -85,7 +92,7 @@
 		if (yc != null) {
 			lines.push(
 				series.createPriceLine({
-					price: yc,
+					price: yc / fxRate,
 					color: '#ecca8e',
 					lineWidth: 2,
 					lineStyle: LSEnum.Solid,
@@ -96,14 +103,38 @@
 		}
 	}
 
-	async function loadHistory(c: Currency) {
+	async function loadCandles(id: number): Promise<Candle[]> {
+		try {
+			const r = await fetch(`/api/history/${id}`);
+			const d = r.ok ? ((await r.json()) as { candles?: Candle[] }) : { candles: [] };
+			return d.candles ?? [];
+		} catch {
+			return [];
+		}
+	}
+
+	async function loadHistory(c: Currency, q: Quote) {
 		loading = true;
 		try {
-			const r = await fetch(`/api/history/${c.id}`);
-			const d = r.ok ? ((await r.json()) as { candles?: Candle[] }) : { candles: [] };
-			candles = d.candles?.length ? d.candles : synth(c);
-		} catch {
-			candles = synth(c);
+			let cs = await loadCandles(c.id);
+			if (!cs.length) cs = synth(c);
+			// denominate in Divine (per-day) when the effective quote is Divine
+			if (effectiveQuote(c.apiId, q) === 'divine' && c.apiId !== 'divine') {
+				const dc = await loadCandles(divineId);
+				const byDate = new Map(dc.map((k) => [k.time, k.close]));
+				const fallback = dc.length ? dc[dc.length - 1].close : fxRate || 1;
+				cs = cs.map((k) => {
+					const dv = byDate.get(k.time) ?? fallback;
+					return {
+						time: k.time,
+						open: k.open / dv,
+						high: k.high / dv,
+						low: k.low / dv,
+						close: k.close / dv
+					};
+				});
+			}
+			candles = cs;
 		} finally {
 			loading = false;
 		}
@@ -171,14 +202,15 @@
 		};
 	});
 
-	// reload candles when the currency changes
+	// reload + re-denominate candles when currency or quote changes
 	$effect(() => {
-		loadHistory(currency);
+		loadHistory(currency, quote);
 	});
-	// redraw overlay when the forecast or active horizon changes
+	// redraw overlay when forecast / horizon / rate changes
 	$effect(() => {
 		forecast;
 		activeHorizon;
+		fxRate;
 		drawForecast();
 	});
 </script>
@@ -187,7 +219,7 @@
 	<div class="chart-legend">
 		<span class="cl-sym">{ticker(currency.apiId)}</span>
 		<span class="cl-name">{currency.name}</span>
-		<span class="cl-price">{fmt(legPrice || currency.price)} <em>{base}</em></span>
+		<span class="cl-price">{fmt(legPrice || currency.price / fxRate)} <em>{quoteLabel}</em></span>
 		<span class="cl-chg {signClass(legChg)}">{signStr(legChg)}</span>
 		{#if loading}
 			<span class="cl-date">loading…</span>
@@ -202,7 +234,7 @@
 			class="chart-canvas"
 			bind:this={el}
 			role="img"
-			aria-label={`${currency.name} candlestick chart in ${base}`}
+			aria-label={`${currency.name} candlestick chart in ${quoteLabel}`}
 		></div>
 	{/if}
 </div>
