@@ -9,6 +9,7 @@ export interface Currency {
 	apiId: string;
 	name: string;
 	category: string;
+	icon: string;
 	price: number;
 	changePct: number; // over full window
 	change1dPct: number; // last vs previous day

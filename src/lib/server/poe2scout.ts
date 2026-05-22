@@ -70,6 +70,8 @@ interface RawItem {
 	ItemId: number;
 	ApiId: string;
 	Text: string;
+	IconUrl?: string;
+	ItemMetadata?: { icon?: string };
 	PriceLogs?: RawLog[];
 }
 
@@ -95,6 +97,7 @@ function toCurrency(it: RawItem, category: string): Currency | null {
 		apiId: it.ApiId,
 		name: it.Text,
 		category,
+		icon: it.IconUrl ?? it.ItemMetadata?.icon ?? '',
 		price: last.p,
 		changePct: first.p ? round(((last.p - first.p) / first.p) * 100) : 0,
 		change1dPct: prev.p ? round(((last.p - prev.p) / prev.p) * 100) : 0,
@@ -189,6 +192,7 @@ function fallbackMarket(): Market {
 			apiId: h.key,
 			name: h.text,
 			category: 'currency',
+			icon: '',
 			price: h.latest,
 			changePct: h.changePct,
 			change1dPct: 0,
@@ -204,6 +208,7 @@ function fallbackMarket(): Market {
 				apiId: t.api,
 				name: t.text,
 				category: 'currency',
+				icon: '',
 				price: t.price,
 				changePct: t.wkChange,
 				change1dPct: 0,

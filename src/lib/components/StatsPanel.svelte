@@ -1,13 +1,14 @@
 <script lang="ts">
 	import type { Currency } from '$lib/types';
-	import { fmt, compact, signStr, signClass, ticker } from '$lib/format';
+	import { fmt, compact, signStr, signClass } from '$lib/format';
+	import ItemIcon from '$lib/components/ItemIcon.svelte';
 
 	let { currency, unit }: { currency: Currency; unit: string } = $props();
 </script>
 
 <section class="panel stats" aria-label="Currency details">
 	<header class="stats-head">
-		<span class="sym lg">{ticker(currency.apiId)}</span>
+		<ItemIcon apiId={currency.apiId} icon={currency.icon} size={40} chip="sym lg" />
 		<div>
 			<h2>{currency.name}</h2>
 			<p class="muted">in {unit}</p>

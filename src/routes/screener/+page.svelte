@@ -7,6 +7,7 @@
 		QUOTE_SHORT,
 		type Quote
 	} from '$lib/convert';
+	import ItemIcon from '$lib/components/ItemIcon.svelte';
 	import type { Currency } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -130,7 +131,7 @@
 							<td class="num idx">{i + 1}</td>
 							<td>
 								<a class="scr-name" href={`/?c=${c.apiId}`}>
-									<span class="sym">{ticker(c.apiId)}</span>
+									<ItemIcon apiId={c.apiId} icon={c.icon} size={22} chip="sym" />
 									<span class="nm">{c.name}</span>
 								</a>
 							</td>

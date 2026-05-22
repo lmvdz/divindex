@@ -2,6 +2,7 @@
 	import type { Currency } from '$lib/types';
 	import { fmt, signStr, signClass, ticker } from '$lib/format';
 	import { effectiveQuote, QUOTE_SHORT, type Quote } from '$lib/convert';
+	import ItemIcon from '$lib/components/ItemIcon.svelte';
 
 	let {
 		currencies,
@@ -79,7 +80,7 @@
 					aria-selected={c.id === selectedId}
 					onclick={() => onselect(c.id)}
 				>
-					<span class="sym">{ticker(c.apiId)}</span>
+					<ItemIcon apiId={c.apiId} icon={c.icon} size={22} chip="sym" />
 					<span class="nm">{c.name}</span>
 					<span class="pr">
 						{fmt(c.price)}{#if effectiveQuote(c.apiId, quote) !== quote}<small class="unit"

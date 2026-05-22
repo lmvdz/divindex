@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import type { Candle, Currency, Forecast, Horizon, Timeframe } from '$lib/types';
-	import { fmt, compact, signStr, signClass, ticker } from '$lib/format';
+	import { fmt, compact, signStr, signClass } from '$lib/format';
 	import { effectiveQuote, QUOTE_LABEL, type Quote } from '$lib/convert';
+	import ItemIcon from '$lib/components/ItemIcon.svelte';
 
 	let {
 		currency,
@@ -346,7 +347,7 @@
 
 <div class="chart-pane">
 	<div class="chart-legend">
-		<span class="cl-sym">{ticker(currency.apiId)}</span>
+		<ItemIcon apiId={currency.apiId} icon={currency.icon} size={20} chip="sym" />
 		<span class="cl-name">{currency.name}</span>
 		<span class="cl-price">{fmt(legPrice || currency.price / fxRate)} <em>{quoteLabel}</em></span>
 		<span class="cl-chg {signClass(legChg)}">{signStr(legChg)}</span>

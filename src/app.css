@@ -211,6 +211,13 @@ a {
 	min-width: 30px;
 	padding: 3px 5px;
 }
+.item-icon {
+	display: block;
+	object-fit: contain;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.03);
+	flex: none;
+}
 
 /* ---- terminal shell ---- */
 .terminal {
