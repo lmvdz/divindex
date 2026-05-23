@@ -62,7 +62,7 @@ const report = {
 	generatedAt: new Date().toISOString(),
 	league,
 	crafts,
-	note: 'Exact shard↔orb arbitrage (10:1) from live poe2scout prices. Essence/omen EV crafts arrive on fuller skill runs as PoE2 finished-item data thickens. Mechanics: Path of Crafting (MIT) + poe2db.tw.',
+	note: 'Exact shard↔orb arbitrage (10:1) from live poe2scout prices. Tier upgrades (essences/runes) are a probabilistic Reforging Bench gamble, not a deterministic recipe — excluded. Guaranteed-mod essence crafts need finished-item valuation (thin in current PoE2 data). Mechanics: Path of Crafting (MIT) + poe2db.tw.',
 	sources: ['poe2scout.com', 'Path of Crafting (MIT)', 'poe2db.tw']
 };
 await Bun.write('static/crafts.json', `${JSON.stringify(report, null, 2)}\n`);
