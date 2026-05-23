@@ -32,11 +32,11 @@ const UA = 'Divindex/0.1 (+https://divindex.com; contact: hello@divindex.com)';
 const BASE = 'https://poe2scout.com/api';
 const REALM = 'poe2';
 // poe2scout publishes hourly, so cache until just after the next hourly update
-// (HH:05 UTC) — at most one upstream pull per resource per hour, instead of
+// (HH:10 UTC) — at most one upstream pull per resource per hour, instead of
 // re-pulling on a flat 10-min timer regardless of whether the data changed.
 function nextRefresh(now = Date.now()): number {
 	const d = new Date(now);
-	let t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), 5, 0, 0);
+	let t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), 10, 0, 0);
 	if (now >= t) t += 3600_000;
 	return t;
 }

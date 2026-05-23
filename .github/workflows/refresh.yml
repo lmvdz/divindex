@@ -2,7 +2,7 @@ name: Hourly refresh
 
 on:
   schedule:
-    - cron: '5 * * * *' # 5 min past every hour, after poe2scout's hourly update
+    - cron: '10 * * * *' # 10 min past every hour, after poe2scout's hourly update
   workflow_dispatch: {}
 
 concurrency:
