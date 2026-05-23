@@ -112,6 +112,37 @@
 		pHoldings = pHoldings.filter((h) => h.apiId !== apiId);
 		savePortfolio();
 	}
+
+	// import from PoE's Ctrl+C clipboard text (the only sanctioned client-side export)
+	const byName = $derived(new Map((data.markets ?? []).map((m) => [m.name.toLowerCase(), m.apiId])));
+	let pPaste = $state('');
+	let pPasteMsg = $state('');
+	function importPaste() {
+		const next = [...pHoldings];
+		let added = 0;
+		for (const block of pPaste.split(/(?=Item Class:)/i)) {
+			const ri = block.search(/Rarity:/i);
+			if (ri < 0) continue;
+			const name = (block.slice(ri).split('\n')[1] || '').trim();
+			const stack = block.match(/Stack Size:\s*([\d,]+)/i);
+			const qty = stack ? Number(stack[1].replace(/,/g, '')) : 1;
+			const apiId = byName.get(name.toLowerCase());
+			if (!apiId || !(qty > 0)) continue;
+			const ex = next.find((h) => h.apiId === apiId);
+			if (ex) ex.qty = qty;
+			else next.push({ apiId, qty });
+			added++;
+		}
+		if (added) {
+			pHoldings = next;
+			pPaste = '';
+			savePortfolio();
+			pPasteMsg = `Imported ${added} position${added === 1 ? '' : 's'}.`;
+		} else {
+			pPasteMsg = 'No currency items found in the paste.';
+		}
+		setTimeout(() => (pPasteMsg = ''), 3000);
+	}
 	function lineSpark(vals: number[]): string {
 		if (vals.length < 2) return '';
 		const w = 240;
@@ -455,6 +486,15 @@
 						<input class="field" type="number" step="any" min="0" placeholder="Avg cost EX (optional)" bind:value={pCost} aria-label="Average cost" />
 						<button class="btn btn-primary" type="submit">Add holding</button>
 					</form>
+					<details class="port-import">
+						<summary>Import from game (paste)</summary>
+						<p class="muted">In PoE2, hover a currency stack and press <b>Ctrl+C</b>, then paste here (one or more items) — we read the name + stack size. No mod or memory-reading needed; one-click stash sync arrives when GGG exposes the PoE2 stash API.</p>
+						<textarea class="field port-paste" rows="4" placeholder="Paste copied item text…" bind:value={pPaste}></textarea>
+						<div class="port-import-row">
+							<button class="btn btn-primary" onclick={importPaste} disabled={!pPaste.trim()}>Import</button>
+							{#if pPasteMsg}<span class="muted">{pPasteMsg}</span>{/if}
+						</div>
+					</details>
 					{#if port && port.holdings.length}
 						<div class="prof-stats">
 							<div><span class="st-label">Total value</span><b class="mono">{fmt(port.total)} EX</b></div>
