@@ -44,6 +44,7 @@
 	let emaPeriod = $state<number | null>(null);
 	let bb = $state(false);
 	let vwap = $state(false);
+	let cone = $state(false);
 	const intraday = $derived(timeframe === '1h' || timeframe === '4h');
 	const kindFor = (tf: Timeframe): 'line' | 'candle' => (tf === '1h' ? 'line' : 'candle');
 	const quoteLabel = $derived(QUOTE_LABEL[effectiveQuote(currency.apiId, quote)]);
@@ -74,6 +75,7 @@
 	let fcLines: LineApi[] = [];
 	let bbSeries: LineApi[] = [];
 	let vwapSeries: LineApi | undefined;
+	let coneLines: LineApi[] = [];
 
 	function fmtTime(sec: number): string {
 		const iso = new Date(sec * 1000).toISOString();
@@ -328,6 +330,46 @@
 		chart.timeScale().fitContent();
 	}
 
+	// Forward forecast cone (Pro): from the last price to each horizon's open-epoch
+	// prediction band (p25/p75) + consensus. Premium toggle, off by default; uses
+	// the same safe 2-point line-series pattern as the forecast lines.
+	function drawCone() {
+		if (!ready || !chart || !lcRef) return;
+		for (const s of coneLines) {
+			try {
+				chart.removeSeries(s);
+			} catch {
+				/* gone */
+			}
+		}
+		coneLines = [];
+		if (!cone || !premium || !forecast || candles.length === 0) return;
+		const last = candles[candles.length - 1];
+		const anchor = { time: last.time, value: last.close };
+		const edge = (endSec: number, value: number, color: string, width: 1 | 2, dashed: boolean) => {
+			if (!chart || !lcRef || endSec <= last.time) return;
+			const s = chart.addSeries(lcRef.LineSeries, {
+				color,
+				lineWidth: width,
+				lineStyle: dashed ? lcRef.LineStyle.Dashed : lcRef.LineStyle.Solid,
+				priceLineVisible: false,
+				lastValueVisible: false,
+				crosshairMarkerVisible: false
+			});
+			s.setData([anchor, { time: endSec, value }] as never);
+			coneLines.push(s);
+		};
+		for (const h of ['hour', 'day', 'week'] as Horizon[]) {
+			const hz = forecast.horizons[h];
+			const col = HORIZON_COLORS[h];
+			const endSec = Math.floor(hz.end / 1000);
+			if (hz.lo != null) edge(endSec, hz.lo / fxRate, col.base, 1, true);
+			if (hz.hi != null) edge(endSec, hz.hi / fxRate, col.base, 1, true);
+			if (hz.consensus != null) edge(endSec, hz.consensus / fxRate, col.you, 2, false);
+		}
+		chart.timeScale().fitContent();
+	}
+
 	async function loadCandles(id: number, tf: Timeframe): Promise<Candle[]> {
 		try {
 			const r = await fetch(`/api/history/${id}?tf=${tf}`);
@@ -389,6 +431,7 @@
 		drawForecast();
 		drawBB();
 		drawVWAP();
+		drawCone();
 	}
 
 	onMount(() => {
@@ -441,6 +484,7 @@
 				drawForecast();
 				drawBB();
 				drawVWAP();
+				drawCone();
 			} catch {
 				failed = true;
 			}
@@ -465,6 +509,7 @@
 		forecast;
 		fxRate;
 		drawForecast();
+		drawCone();
 	});
 	$effect(() => {
 		bb;
@@ -474,6 +519,11 @@
 		vwap;
 		premium;
 		drawVWAP();
+	});
+	$effect(() => {
+		cone;
+		premium;
+		drawCone();
 	});
 </script>
 
@@ -504,6 +554,7 @@
 			<button class:active={bb} onclick={() => (bb = !bb)} title="Bollinger Bands (20, 2σ)">BB</button>
 			{#if premium}
 				<button class:active={vwap} onclick={() => (vwap = !vwap)} title="VWAP (anchored) — Pro">VWAP</button>
+				<button class:active={cone} onclick={() => (cone = !cone)} title="Forecast cone (crowd p25–p75) — Pro">Cone</button>
 			{/if}
 		</div>
 		<div class="tf-tabs" role="group" aria-label="Timeframe">

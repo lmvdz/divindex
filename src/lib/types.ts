@@ -52,6 +52,8 @@ export interface HorizonState {
 	consensus: number | null; // median of all calls this epoch
 	yourCall: number | null;
 	calls: number;
+	lo: number | null; // p25 of this epoch's predictions (Exalted) — cone band
+	hi: number | null; // p75
 }
 
 export interface PredPoint {

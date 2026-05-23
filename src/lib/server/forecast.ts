@@ -97,6 +97,15 @@ function median(xs: number[]): number | null {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+function quantile(xs: number[], q: number): number | null {
+	if (!xs.length) return null;
+	const s = [...xs].sort((a, b) => a - b);
+	const i = (s.length - 1) * q;
+	const lo = Math.floor(i);
+	const hi = Math.ceil(i);
+	return lo === hi ? s[lo] : s[lo] + (s[hi] - s[lo]) * (i - lo);
+}
+
 function pearson(xs: number[], ys: number[]): number {
 	const n = Math.min(xs.length, ys.length);
 	if (n < 3) return 0;
@@ -292,11 +301,14 @@ export async function getForecast(
 		const e = db.epochs.find((x) => x.key === key);
 		const calls = e?.calls ?? [];
 		const your = pid ? calls.find((c) => c.pid === pid) : undefined;
+		const preds = calls.map((c) => c.predicted);
 		horizons[h] = {
 			end,
-			consensus: median(calls.map((c) => c.predicted)),
+			consensus: median(preds),
 			yourCall: your ? your.predicted : null,
-			calls: calls.length
+			calls: calls.length,
+			lo: quantile(preds, 0.25),
+			hi: quantile(preds, 0.75)
 		};
 	}
 
