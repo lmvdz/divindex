@@ -1,0 +1,7 @@
+{
+	"generatedAt": null,
+	"league": null,
+	"crafts": [],
+	"note": "Pending first run. Generate with the `poe2-craft-profit` Claude Code skill (uses your subscription): it joins live poe2scout prices with open crafting mechanics from Path of Crafting (MIT) + poe2db.tw and writes the ranked report here.",
+	"sources": ["poe2scout.com", "Path of Crafting (MIT)", "poe2db.tw"]
+}

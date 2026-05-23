@@ -109,6 +109,7 @@
 			<a href="/">Terminal</a>
 			<a href="/screener" aria-current="page" class="active">Screener</a>
 			<a href="/ladder">Ladder</a>
+			<a href="/crafts">Crafts</a>
 			<a href="/analytics">Analytics</a>
 		</nav>
 		<span class="tb-spacer"></span>

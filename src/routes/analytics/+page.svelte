@@ -163,6 +163,7 @@
 			<a href="/">Terminal</a>
 			<a href="/screener">Screener</a>
 			<a href="/ladder">Ladder</a>
+			<a href="/crafts">Crafts</a>
 			<a href="/analytics" aria-current="page" class="active">Analytics<span class="pro-pill">PRO</span></a>
 		</nav>
 	</header>
