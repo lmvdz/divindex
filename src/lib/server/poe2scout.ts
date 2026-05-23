@@ -338,7 +338,13 @@ export async function getHistory(
 				close: round(v.c),
 				volume: Math.round(v.vol)
 			}));
-		return { id: itemId, tf, candles };
+		for (let i = 1; i < candles.length; i++) {
+				const o = candles[i - 1].close;
+				candles[i].open = o;
+				if (o > candles[i].high) candles[i].high = o;
+				if (o < candles[i].low) candles[i].low = o;
+			}
+			return { id: itemId, tf, candles };
 	} catch {
 		return { id: itemId, tf, candles: [] };
 	}
