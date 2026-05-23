@@ -170,7 +170,9 @@ function toCurrency(it: RawItem, category: string): Currency | null {
 	};
 }
 
-async function fetchCategory(enc: string, category: string): Promise<Currency[]> {
+// Returns null when the fetch fails (after retries) so the caller can tell a
+// dropped category apart from one that's legitimately empty ([]).
+async function fetchCategory(enc: string, category: string): Promise<Currency[] | null> {
 	try {
 		const res = (await getJson(
 			`${BASE}/${REALM}/Leagues/${enc}/Currencies/ByCategory?Category=${category}&Page=1&PerPage=100`
@@ -182,7 +184,7 @@ async function fetchCategory(enc: string, category: string): Promise<Currency[]>
 		}
 		return out;
 	} catch {
-		return [];
+		return null;
 	}
 }
 
@@ -210,10 +212,13 @@ export async function getMarket(league?: string): Promise<Market> {
 			getEconomy(enc)
 		]);
 
+		const failed = lists.filter((l) => l === null).length;
+
 		const seen = new Set<number>();
 		const currencies: Currency[] = [];
 		let asOf = '';
 		for (const list of lists) {
+			if (!list) continue;
 			for (const c of list) {
 				if (seen.has(c.id)) continue;
 				seen.add(c.id);
@@ -222,7 +227,7 @@ export async function getMarket(league?: string): Promise<Market> {
 				currencies.push(c);
 			}
 		}
-		if (currencies.length === 0) return fallbackMarket();
+		if (currencies.length === 0) return cached?.data ?? fallbackMarket();
 		currencies.sort((a, b) => b.price - a.price);
 		const categories = CURRENCY_CATEGORIES.filter((cat) =>
 			currencies.some((c) => c.category === cat)
@@ -239,7 +244,16 @@ export async function getMarket(league?: string): Promise<Market> {
 			note: 'Live Path of Exile 2 Currency Exchange data via poe2scout.',
 			source: 'poe2scout.com'
 		};
-		marketCache.set(lg, { data, expires: nextRefresh() });
+		// A category fetch can drop out transiently. Never let a partial pull (e.g.
+		// a missing "currency" category — Mirror, Divine, Exalted) clobber a complete
+		// market for the full hour: keep serving the last good market when it covered
+		// more categories, and retry the dropped ones within ~90s instead of HH:10.
+		const prev = cached?.data;
+		if (failed > 0 && prev && prev.categories.length > categories.length) {
+			marketCache.set(lg, { data: prev, expires: Date.now() + 90_000 });
+			return prev;
+		}
+		marketCache.set(lg, { data, expires: failed > 0 ? Date.now() + 90_000 : nextRefresh() });
 		return data;
 	} catch {
 		return cached?.data ?? fallbackMarket();
