@@ -231,6 +231,32 @@ export interface MyAnalytics {
 	byHorizon: MyBreakdown[];
 }
 
+export interface Holding {
+	apiId: string;
+	qty: number;
+	cost?: number; // avg buy price, Exalted (optional, for P&L)
+}
+
+export interface PortHolding {
+	apiId: string;
+	name: string;
+	category: string;
+	qty: number;
+	price: number; // current, Exalted
+	value: number; // qty × price
+	cost?: number;
+	pnl?: number; // (price − cost) × qty
+	pnlPct?: number;
+}
+
+export interface Portfolio {
+	total: number; // total value, Exalted
+	pnl: number; // total P&L where cost is known
+	holdings: PortHolding[];
+	byCategory: { category: string; value: number }[];
+	equity: { t: string; value: number }[]; // portfolio value over time (carry-forward)
+}
+
 export interface AlertRule {
 	id: string;
 	pid: string;

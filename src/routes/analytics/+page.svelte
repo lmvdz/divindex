@@ -4,13 +4,13 @@
 	import { page } from '$app/state';
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
-	import type { AlertRule } from '$lib/types';
+	import type { AlertRule, Holding, Portfolio } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	const signedIn = $derived(!!(page.data.session as { user?: unknown } | null)?.user);
 
-	type Tab = 'market' | 'smart' | 'fair' | 'arb' | 'me' | 'alerts';
+	type Tab = 'market' | 'smart' | 'fair' | 'arb' | 'me' | 'port' | 'alerts';
 	let tab = $state<Tab>('market');
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'market', label: 'Market intelligence' },
@@ -18,6 +18,7 @@
 		{ id: 'fair', label: 'Fair value' },
 		{ id: 'arb', label: 'Arbitrage' },
 		{ id: 'me', label: 'My performance' },
+		{ id: 'port', label: 'Portfolio' },
 		{ id: 'alerts', label: 'Alerts' }
 	];
 
@@ -61,6 +62,51 @@
 	async function deleteAlert(id: string) {
 		const res = await fetch(`/api/alerts?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
 		if (res.ok) alerts = (await res.json()).alerts;
+	}
+
+	// portfolio (premium)
+	let port = $state<Portfolio | null>(untrack(() => data.port ?? null));
+	let pHoldings = $state<Holding[]>(
+		untrack(() => (data.port?.holdings ?? []).map((h) => ({ apiId: h.apiId, qty: h.qty, cost: h.cost })))
+	);
+	let pCur = $state('');
+	let pQty = $state<number | null>(null);
+	let pCost = $state<number | null>(null);
+
+	async function savePortfolio() {
+		const res = await fetch('/api/portfolio', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ holdings: pHoldings })
+		});
+		if (res.ok) {
+			port = await res.json();
+			pHoldings = (port?.holdings ?? []).map((h) => ({ apiId: h.apiId, qty: h.qty, cost: h.cost }));
+		}
+	}
+	function addHolding(e: SubmitEvent) {
+		e.preventDefault();
+		if (!pCur || pQty == null || !(pQty > 0)) return;
+		pHoldings = [...pHoldings, { apiId: pCur, qty: pQty, cost: pCost && pCost > 0 ? pCost : undefined }];
+		pCur = '';
+		pQty = null;
+		pCost = null;
+		savePortfolio();
+	}
+	function removeHolding(apiId: string) {
+		pHoldings = pHoldings.filter((h) => h.apiId !== apiId);
+		savePortfolio();
+	}
+	function lineSpark(vals: number[]): string {
+		if (vals.length < 2) return '';
+		const w = 240;
+		const h = 40;
+		const min = Math.min(...vals);
+		const max = Math.max(...vals);
+		const span = max - min || 1;
+		return vals
+			.map((v, i) => `${i ? 'L' : 'M'}${((i / (vals.length - 1)) * w).toFixed(1)} ${(h - ((v - min) / span) * h).toFixed(1)}`)
+			.join(' ');
 	}
 
 	const pct = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(1)}%`;
@@ -107,7 +153,7 @@
 	</header>
 
 	<main class="scr-body" id="main">
-		{#if !data.premium || !data.market || !data.smart || !data.me || !data.markets || !data.arb || !data.fair}
+		{#if !data.premium || !data.market || !data.smart || !data.me || !data.markets || !data.arb || !data.fair || !data.port}
 			<section class="upsell">
 				<span class="eyebrow">Divindex Pro</span>
 				<h1>Analytics suite</h1>
@@ -352,6 +398,48 @@
 				{:else}
 					<p class="muted">No settled calls yet. Make some forecasts on the <a href="/">terminal</a> — your performance shows up here once they settle.</p>
 				{/if}
+			{:else if tab === 'port'}
+				<section class="an-card wide">
+					<h3>Portfolio</h3>
+					<form class="alert-form" onsubmit={addHolding}>
+						<select class="field" bind:value={pCur} aria-label="Currency">
+							<option value="" disabled>Currency…</option>
+							{#each markets as m (m.apiId)}<option value={m.apiId}>{m.name}</option>{/each}
+						</select>
+						<input class="field" type="number" step="any" min="0" placeholder="Qty" bind:value={pQty} aria-label="Quantity" />
+						<input class="field" type="number" step="any" min="0" placeholder="Avg cost EX (optional)" bind:value={pCost} aria-label="Average cost" />
+						<button class="btn btn-primary" type="submit">Add holding</button>
+					</form>
+					{#if port && port.holdings.length}
+						<div class="prof-stats">
+							<div><span class="st-label">Total value</span><b class="mono">{fmt(port.total)} EX</b></div>
+							<div><span class="st-label">P&amp;L</span><b class="mono {cls(port.pnl)}">{fmt(port.pnl)} EX</b></div>
+							<div><span class="st-label">Positions</span><b class="mono">{port.holdings.length}</b></div>
+						</div>
+						{#if lineSpark(port.equity.map((e) => e.value))}
+							<svg class="equity" viewBox="0 0 240 40" preserveAspectRatio="none" aria-hidden="true"><path d={lineSpark(port.equity.map((e) => e.value))} class={port.pnl >= 0 ? 'sp-up' : 'sp-down'} /></svg>
+						{/if}
+						<div class="scr-table-wrap">
+							<table class="scr-table">
+								<thead><tr><th>Market</th><th class="num">Qty</th><th class="num">Price</th><th class="num">Value</th><th class="num hide-sm">P&amp;L</th><th></th></tr></thead>
+								<tbody>
+									{#each port.holdings as h (h.apiId)}
+										<tr>
+											<td><a href="/?c={h.apiId}">{h.name}</a></td>
+											<td class="num mono">{h.qty}</td>
+											<td class="num mono">{fmt(h.price)}</td>
+											<td class="num mono">{fmt(h.value)}</td>
+											<td class="num mono hide-sm {h.pnl != null ? cls(h.pnl) : ''}">{h.pnlPct != null ? pct(h.pnlPct) : '—'}</td>
+											<td><button class="share-btn" onclick={() => removeHolding(h.apiId)} aria-label="Remove">×</button></td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{:else}
+						<p class="muted">Add your currency holdings above to track total value, P&amp;L, and your bag's value over the league.</p>
+					{/if}
+				</section>
 			{:else}
 				<section class="an-card wide">
 					<h3>Price alerts</h3>
