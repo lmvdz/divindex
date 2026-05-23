@@ -31,10 +31,10 @@
 		<span class="chg {signClass(currency.change1dPct)}">{signStr(currency.change1dPct)} · 24h</span>
 	</div>
 
-	<dl class="stat-grid">
-		<div><dt>7d change</dt><dd class={signClass(currency.changePct)}>{signStr(currency.changePct)}</dd></div>
+	<dl class="stat-line">
+		<div><dt>7D</dt><dd class={signClass(currency.changePct)}>{signStr(currency.changePct)}</dd></div>
 		<div><dt>High</dt><dd>{fmt(currency.high)}</dd></div>
 		<div><dt>Low</dt><dd>{fmt(currency.low)}</dd></div>
-		<div><dt>Volume</dt><dd>{compact(currency.volume)}</dd></div>
+		<div><dt>Vol</dt><dd>{compact(currency.volume)}</dd></div>
 	</dl>
 </section>

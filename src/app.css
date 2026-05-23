@@ -56,7 +56,7 @@ a {
 .cl-chg,
 .cl-date,
 .tb-updated,
-.stat-grid dd {
+.stat-line dd {
 	font-feature-settings: "tnum" 1;
 	font-variant-numeric: tabular-nums;
 }
@@ -587,8 +587,8 @@ a {
 	flex-direction: column;
 }
 .stats {
-	padding: 18px;
-	gap: 18px;
+	padding: 16px 18px;
+	gap: 12px;
 	border-bottom: 1px solid var(--border);
 }
 .stats-head {
@@ -616,29 +616,26 @@ a {
 .stats-price .chg {
 	font: 500 0.86rem var(--mono);
 }
-.stat-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 1px;
+.stat-line {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 18px;
 	margin: 0;
-	background: var(--border);
-	border: 1px solid var(--border);
-	border-radius: var(--radius-sm);
-	overflow: hidden;
 }
-.stat-grid div {
-	background: var(--surface);
-	padding: 12px 14px;
+.stat-line div {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
 }
-.stat-grid dt {
+.stat-line dt {
 	color: var(--faint);
-	font-size: 0.7rem;
+	font-size: 0.66rem;
 	text-transform: uppercase;
-	letter-spacing: 0.06em;
+	letter-spacing: 0.05em;
 }
-.stat-grid dd {
-	margin: 4px 0 0;
-	font: 500 1rem var(--mono);
+.stat-line dd {
+	margin: 0;
+	font: 500 0.86rem var(--mono);
 }
 .movers h3 {
 	font: 600 0.72rem var(--sans);
@@ -1100,20 +1097,16 @@ a {
 .fx-grid {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
-	gap: 1px;
-	background: var(--border);
-	border: 1px solid var(--border);
-	border-radius: var(--radius-sm);
-	overflow: hidden;
+	gap: 8px 16px;
+	margin: 0;
 }
 .fx-grid div {
-	background: var(--surface);
-	padding: 10px 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 }
 .fx-grid b {
-	display: block;
-	margin-top: 4px;
-	font-size: 0.95rem;
+	font-size: 0.92rem;
 }
 .fx-quick {
 	display: flex;
