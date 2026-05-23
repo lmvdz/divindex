@@ -1,6 +1,34 @@
-import type { Market, MarketAnalytics, PricePoint } from '$lib/types';
+import type { Arbitrage, Market, MarketAnalytics, PricePoint, ShardArb } from '$lib/types';
 
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
+
+// Shard arbitrage: 10 shards = 1 orb in PoE2. Detect shard↔orb pairs by name
+// root and price the edge (orb worth more than 10 of its shards ⇒ combine & sell).
+export function getArbitrage(market: Market): Arbitrage {
+	const SHARDS_PER_ORB = 10;
+	const cur = market.currencies;
+	const shards: ShardArb[] = [];
+	for (const s of cur) {
+		if (!/shard$/i.test(s.name.trim()) || !(s.price > 0)) continue;
+		const root = s.name.trim().replace(/\s*Shard$/i, '').trim();
+		if (!root) continue;
+		const orb = cur.find((c) => c.apiId !== s.apiId && /orb/i.test(c.name) && c.name.includes(root));
+		if (!orb || !(orb.price > 0)) continue;
+		const edge = orb.price - SHARDS_PER_ORB * s.price;
+		shards.push({
+			shardName: s.name,
+			orbName: orb.name,
+			shardApiId: s.apiId,
+			orbApiId: orb.apiId,
+			shardPrice: round(s.price),
+			orbPrice: round(orb.price),
+			edge: round(edge),
+			edgePct: round((edge / orb.price) * 100)
+		});
+	}
+	shards.sort((a, b) => b.edgePct - a.edgePct);
+	return { updatedAt: Date.now(), shardsPerOrb: SHARDS_PER_ORB, shards };
+}
 
 function dailyReturns(series: PricePoint[]): Map<string, number> {
 	const out = new Map<string, number>();

@@ -10,11 +10,12 @@
 	let { data }: { data: PageData } = $props();
 	const signedIn = $derived(!!(page.data.session as { user?: unknown } | null)?.user);
 
-	type Tab = 'market' | 'smart' | 'me' | 'alerts';
+	type Tab = 'market' | 'smart' | 'arb' | 'me' | 'alerts';
 	let tab = $state<Tab>('market');
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'market', label: 'Market intelligence' },
-		{ id: 'smart', label: 'Smart money' },
+		{ id: 'smart', label: 'Signal' },
+		{ id: 'arb', label: 'Arbitrage' },
 		{ id: 'me', label: 'My performance' },
 		{ id: 'alerts', label: 'Alerts' }
 	];
@@ -105,7 +106,7 @@
 	</header>
 
 	<main class="scr-body" id="main">
-		{#if !data.premium || !data.market || !data.smart || !data.me || !data.markets}
+		{#if !data.premium || !data.market || !data.smart || !data.me || !data.markets || !data.arb}
 			<section class="upsell">
 				<span class="eyebrow">Divindex Pro</span>
 				<h1>Analytics suite</h1>
@@ -129,6 +130,7 @@
 			{@const smart = data.smart}
 			{@const me = data.me}
 			{@const markets = data.markets}
+			{@const arb = data.arb}
 			<div class="scr-meta">
 				<span class="eyebrow">Analytics <span class="pro-pill">PRO</span></span>
 				<span class="muted">{market.league} · live market + crowd intelligence</span>
@@ -260,6 +262,30 @@
 						</ul>
 					</section>
 				{/if}
+			{:else if tab === 'arb'}
+				<section class="an-card wide">
+					<h3>Shard arbitrage <span class="muted">— {arb.shardsPerOrb} shards = 1 orb</span></h3>
+					{#if arb.shards.length}
+						<div class="scr-table-wrap">
+							<table class="scr-table">
+								<thead><tr><th>Orb</th><th class="num">10× shard</th><th class="num">Orb price</th><th class="num">Edge</th></tr></thead>
+								<tbody>
+									{#each arb.shards as a (a.shardApiId)}
+										<tr>
+											<td><a href="/?c={a.orbApiId}">{a.orbName}</a> <span class="muted">({a.shardName})</span></td>
+											<td class="num mono">{fmt(a.shardPrice * arb.shardsPerOrb)}</td>
+											<td class="num mono">{fmt(a.orbPrice)}</td>
+											<td class="num mono {cls(a.edgePct)}">{pct(a.edgePct)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+						<p class="muted">Positive edge = the orb sells for more than {arb.shardsPerOrb} of its shards — buy shards, combine, sell the orb. Prices in Exalted.</p>
+					{:else}
+						<p class="muted">No shard↔orb pairs found in the current market data.</p>
+					{/if}
+				</section>
 			{:else if tab === 'me'}
 				{#if me.calls > 0}
 					<section class="prof-stats">

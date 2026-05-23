@@ -149,6 +149,23 @@ export interface MarketAnalytics {
 	correlations: { ids: { apiId: string; name: string }[]; matrix: number[][] };
 }
 
+export interface ShardArb {
+	shardName: string;
+	orbName: string;
+	shardApiId: string;
+	orbApiId: string;
+	shardPrice: number; // per shard, Exalted
+	orbPrice: number; // per orb, Exalted
+	edge: number; // orbPrice − 10 × shardPrice
+	edgePct: number; // edge / orbPrice × 100 (positive ⇒ combine shards → sell orb)
+}
+
+export interface Arbitrage {
+	updatedAt: number;
+	shardsPerOrb: number;
+	shards: ShardArb[];
+}
+
 export interface SmartSignal {
 	apiId: string;
 	name: string;
