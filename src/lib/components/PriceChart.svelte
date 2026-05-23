@@ -281,15 +281,10 @@
 		volSeries.setData(data as never);
 	}
 
-	// Project predictions forward in time: a 2-point line from the last actual
-	// Seconds between consecutive epochs, per horizon — used to detect gaps.
-	const STEP: Record<Horizon, number> = { hour: 3600, day: 86400, week: 604800 };
-
-	// Plot prediction history as its own time-series: one point per epoch at its
-	// settlement time, valued at the predicted price. Point markers flag the real
-	// predictions. Where an interval has no forecast we insert a whitespace point
-	// so the line BREAKS across the gap instead of drawing a misleading straight
-	// bridge — isolated predictions render as standalone dots.
+	// Plot prediction history as its own time-series. Each prediction is SNAPPED to
+	// the candle bucket containing its settlement time so it lands on an existing
+	// candle instead of inserting a phantom time slot (which would gap the candles).
+	// Future (open-epoch) predictions keep their real time and extend the axis right.
 	function drawForecast() {
 		if (!ready || !chart || !lcRef) return;
 		for (const s of fcLines) {
@@ -302,14 +297,25 @@
 		fcLines = [];
 		if (!forecast || !fc) return;
 
-		const addSeries = (pts: PredPoint[], step: number, color: string, dashed: boolean, width: 1 | 2) => {
-			if (!chart || !lcRef || pts.length === 0) return;
-			const data: ({ time: number; value: number } | { time: number })[] = [];
-			for (let i = 0; i < pts.length; i++) {
-				data.push({ time: pts[i].t, value: pts[i].v / fxRate });
-				const next = pts[i + 1];
-				if (next && next.t - pts[i].t > step * 1.5) data.push({ time: pts[i].t + step });
+		const times = candles.map((c) => c.time);
+		const last = times.length ? times[times.length - 1] : 0;
+		const snap = (t: number): number => {
+			if (!times.length || t >= last) return t; // future → keep (forward projection)
+			let b = times[0];
+			for (const ct of times) {
+				if (ct <= t) b = ct;
+				else break;
 			}
+			return b;
+		};
+
+		const addSeries = (pts: PredPoint[], color: string, dashed: boolean, width: 1 | 2) => {
+			if (!chart || !lcRef || pts.length === 0) return;
+			const byTime = new Map<number, number>();
+			for (const p of pts) byTime.set(snap(p.t), p.v); // snap to bucket, dedupe (last wins)
+			const data = [...byTime.entries()]
+				.sort((a, b) => a[0] - b[0])
+				.map(([t, v]) => ({ time: t, value: v / fxRate }));
 			const s = chart.addSeries(lcRef.LineSeries, {
 				color,
 				lineWidth: width,
@@ -326,8 +332,8 @@
 
 		for (const h of ['hour', 'day', 'week'] as Horizon[]) {
 			const col = HORIZON_COLORS[h];
-			addSeries(forecast.series[h].consensus, STEP[h], col.base, true, 1);
-			addSeries(forecast.series[h].you, STEP[h], col.you, false, 2);
+			addSeries(forecast.series[h].consensus, col.base, true, 1);
+			addSeries(forecast.series[h].you, col.you, false, 2);
 		}
 		chart.timeScale().fitContent();
 	}
