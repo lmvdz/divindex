@@ -13,6 +13,8 @@
 		active,
 		unit,
 		fxRate,
+		live = true,
+		currentLeague = '',
 		signedIn,
 		userName,
 		providers,
@@ -27,6 +29,8 @@
 		active: Horizon;
 		unit: string;
 		fxRate: number;
+		live?: boolean;
+		currentLeague?: string;
 		signedIn: boolean;
 		userName: string | null;
 		providers: string[];
@@ -163,7 +167,15 @@
 		</div>
 	{/if}
 
-	{#if forecast && cur}
+	{#if !live}
+		<div class="fx-readonly">
+			<p class="fx-q">Read-only — browsing another league.</p>
+			<p class="muted">
+				Forecasting runs on the live league{currentLeague ? ` (${currentLeague})` : ''}. Switch back to
+				make calls.
+			</p>
+		</div>
+	{:else if forecast && cur}
 		<p class="fx-q">Where will <b>{forecast.currencyName}</b> settle next {longLabel}? <em>({unit})</em></p>
 
 		<div class="fx-grid">

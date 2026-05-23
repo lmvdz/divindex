@@ -4,6 +4,7 @@ import type {
 	Currency,
 	Economy,
 	History,
+	League,
 	Market,
 	PricePoint,
 	Timeframe
@@ -45,6 +46,7 @@ function ttlSeconds(now = Date.now()): number {
 }
 
 let leagueCache: { value: string; expires: number } | null = null;
+let leaguesCache: { value: League[]; expires: number } | null = null;
 const marketCache = new Map<string, { data: Market; expires: number }>();
 const rawCache = new Map<string, { pts: RawPoint[]; expires: number }>();
 
@@ -123,15 +125,30 @@ async function getJson(url: string, ttlSec = ttlSeconds()): Promise<unknown> {
 	return res.json();
 }
 
-export async function getCurrentLeague(): Promise<string> {
-	if (leagueCache && Date.now() < leagueCache.expires) return leagueCache.value;
+// Every league poe2scout exposes (current + past + Standard/HC), cached hourly.
+export async function getLeagues(): Promise<League[]> {
+	if (leaguesCache && Date.now() < leaguesCache.expires) return leaguesCache.value;
 	try {
 		const leagues = (await getJson(`${BASE}/${REALM}/Leagues`)) as Array<{
 			Value: string;
 			IsCurrent: boolean;
 		}>;
-		const current = leagues.find((l) => l.IsCurrent) ?? leagues[0];
-		const value = current?.Value ?? seed.league;
+		const out = leagues
+			.filter((l) => typeof l?.Value === 'string')
+			.map((l) => ({ value: l.Value, isCurrent: !!l.IsCurrent }));
+		if (out.length) leaguesCache = { value: out, expires: nextRefresh() };
+		return out.length ? out : (leaguesCache?.value ?? [{ value: seed.league, isCurrent: true }]);
+	} catch {
+		return leaguesCache?.value ?? [{ value: seed.league, isCurrent: true }];
+	}
+}
+
+export async function getCurrentLeague(): Promise<string> {
+	if (leagueCache && Date.now() < leagueCache.expires) return leagueCache.value;
+	try {
+		const leagues = await getLeagues();
+		const current = leagues.find((l) => l.isCurrent) ?? leagues[0];
+		const value = current?.value ?? seed.league;
 		leagueCache = { value, expires: nextRefresh() };
 		return value;
 	} catch {

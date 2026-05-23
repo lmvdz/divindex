@@ -236,13 +236,19 @@ a {
 	background: rgba(10, 12, 18, 0.6);
 	backdrop-filter: blur(10px);
 }
-.lg-chip {
+.lg-select {
+	width: auto;
+	max-width: 200px;
 	font: 500 0.78rem var(--sans);
 	color: var(--gold);
 	background: rgba(224, 180, 101, 0.08);
 	border: 1px solid rgba(224, 180, 101, 0.22);
 	padding: 5px 10px;
 	border-radius: 999px;
+	cursor: pointer;
+}
+.lg-select:hover {
+	border-color: rgba(224, 180, 101, 0.45);
 }
 .tb-spacer {
 	flex: 1;
@@ -1071,6 +1077,18 @@ a {
 	font-size: 0.86rem;
 	color: var(--muted);
 	margin: 0;
+}
+.fx-readonly {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 14px;
+	border: 1px dashed var(--border-2);
+	border-radius: 10px;
+	background: rgba(255, 255, 255, 0.02);
+}
+.fx-readonly .muted {
+	font-size: 0.8rem;
 }
 .fx-q b {
 	color: var(--text);

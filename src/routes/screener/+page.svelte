@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { quoteStore } from '$lib/quote.svelte';
+	import { leagueStore } from '$lib/league.svelte';
+	import LeagueSelect from '$lib/components/LeagueSelect.svelte';
 	import { fmt, compact, signStr, signClass, ticker } from '$lib/format';
 	import {
 		convertMarket,
@@ -17,7 +19,7 @@
 	import { showTip, moveTip, hideTip } from '$lib/tooltip.svelte';
 	import { watchlist } from '$lib/watchlist.svelte';
 	import { categoryLabel } from '$lib/categories';
-	import type { Currency } from '$lib/types';
+	import type { Currency, League } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -30,6 +32,22 @@
 	$effect(() => {
 		quoteStore.set(quote);
 	});
+
+	// ---- league (loader-driven; switching navigates with ?league=) ----
+	const leagues = $derived((page.data.leagues as League[] | undefined) ?? []);
+	const league = $derived(data.market.league);
+	function selectLeague(lg: string) {
+		if (lg === league) return;
+		leagueStore.set(lg);
+		goto(`/screener?league=${encodeURIComponent(lg)}`, { keepFocus: true, noScroll: true });
+	}
+	onMount(() => {
+		const stored = leagueStore.value;
+		if (!page.url.searchParams.get('league') && stored && stored !== data.market.league) {
+			goto(`/screener?league=${encodeURIComponent(stored)}`, { keepFocus: true, noScroll: true });
+		}
+	});
+
 	const market = $derived(convertMarket(data.market, quote));
 	const QUOTES: Quote[] = ['exalted', 'divine'];
 
@@ -125,6 +143,7 @@
 			<a href="/analytics">Analytics</a>
 		</nav>
 		<span class="tb-spacer"></span>
+		<LeagueSelect {leagues} value={league} onchange={selectLeague} />
 		<div class="quote-toggle" role="group" aria-label="Quote currency">
 			<span class="qt-label">Quote</span>
 			{#each QUOTES as qq (qq)}
@@ -254,6 +273,7 @@
 										<PriceChart
 											currency={raw}
 											{quote}
+											{league}
 											{divineId}
 											fxRate={fxFor(raw.apiId)}
 											forecast={null}

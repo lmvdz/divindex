@@ -9,6 +9,7 @@
 	let {
 		currency,
 		quote,
+		league,
 		divineId,
 		fxRate,
 		forecast,
@@ -19,6 +20,7 @@
 	}: {
 		currency: Currency;
 		quote: Quote;
+		league: string;
 		divineId: number;
 		fxRate: number;
 		forecast: Forecast | null;
@@ -380,7 +382,7 @@
 
 	async function loadCandles(id: number, tf: Timeframe): Promise<Candle[]> {
 		try {
-			const r = await fetch(`/api/history/${id}?tf=${tf}`);
+			const r = await fetch(`/api/history/${id}?tf=${tf}&league=${encodeURIComponent(league)}`);
 			const d = r.ok ? ((await r.json()) as { candles?: Candle[] }) : { candles: [] };
 			return d.candles ?? [];
 		} catch {
@@ -516,6 +518,7 @@
 	});
 
 	$effect(() => {
+		league;
 		loadHistory(currency, quote, timeframe);
 	});
 	$effect(() => {

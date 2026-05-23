@@ -2,9 +2,13 @@
 	import { signIn, signOut } from '@auth/sveltekit/client';
 	import { timeOf } from '$lib/format';
 	import { QUOTE_SHORT, type Quote } from '$lib/convert';
+	import LeagueSelect from '$lib/components/LeagueSelect.svelte';
+	import type { League } from '$lib/types';
 
 	let {
 		league,
+		leagues,
+		onleague,
 		fetchedAt,
 		quote,
 		onquote,
@@ -16,6 +20,8 @@
 		profileHref = null
 	}: {
 		league: string;
+		leagues: League[];
+		onleague: (league: string) => void;
 		fetchedAt: number;
 		quote: Quote;
 		onquote: (q: Quote) => void;
@@ -42,7 +48,7 @@
 		<a href="/crafts">Crafts</a>
 		<a href="/analytics">Analytics</a>
 	</nav>
-	<span class="lg-chip" title="Active league">{league}</span>
+	<LeagueSelect {leagues} value={league} onchange={onleague} />
 	<span class="tb-spacer"></span>
 	<div class="quote-toggle" role="group" aria-label="Quote currency">
 		<span class="qt-label">Quote</span>

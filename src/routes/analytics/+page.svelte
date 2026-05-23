@@ -1,16 +1,34 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { signIn } from '@auth/sveltekit/client';
+	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
 	import { dashboard, WIDGETS } from '$lib/dashboard.svelte';
+	import { leagueStore } from '$lib/league.svelte';
 	import PerfChart from '$lib/components/PerfChart.svelte';
-	import type { AiBriefing, AlertRule, Holding, Portfolio } from '$lib/types';
+	import LeagueSelect from '$lib/components/LeagueSelect.svelte';
+	import type { AiBriefing, AlertRule, Holding, League, Portfolio } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	const signedIn = $derived(!!(page.data.session as { user?: unknown } | null)?.user);
+
+	// ---- league (browse market analytics per league; navigates with ?league=) ----
+	const leagues = $derived((page.data.leagues as League[] | undefined) ?? []);
+	const league = $derived((data.league as string | undefined) ?? '');
+	function selectLeague(lg: string) {
+		if (lg === league) return;
+		leagueStore.set(lg);
+		goto(`/analytics?league=${encodeURIComponent(lg)}`, { keepFocus: true, noScroll: true });
+	}
+	onMount(() => {
+		const stored = leagueStore.value;
+		if (!page.url.searchParams.get('league') && stored && league && stored !== league) {
+			goto(`/analytics?league=${encodeURIComponent(stored)}`, { keepFocus: true, noScroll: true });
+		}
+	});
 
 	type Tab = 'dashboard' | 'market' | 'smart' | 'ai' | 'fair' | 'arb' | 'me' | 'port' | 'alerts';
 	let tab = $state<Tab>('dashboard');
@@ -202,6 +220,10 @@
 			<a href="/crafts">Crafts</a>
 			<a href="/analytics" aria-current="page" class="active">Analytics<span class="pro-pill">PRO</span></a>
 		</nav>
+		{#if data.premium}
+			<span class="tb-spacer"></span>
+			<LeagueSelect {leagues} value={league} onchange={selectLeague} />
+		{/if}
 	</header>
 
 	<main class="scr-body" id="main">

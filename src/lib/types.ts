@@ -295,6 +295,11 @@ export interface Economy {
 	volume: number;
 }
 
+export interface League {
+	value: string; // league name, e.g. 'Fate of the Vaal'
+	isCurrent: boolean; // the live league (where forecasting runs)
+}
+
 export interface Market {
 	league: string;
 	base: string; // 'Exalted Orb'

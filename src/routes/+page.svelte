@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import Toolbar from '$lib/components/Toolbar.svelte';
@@ -17,8 +17,9 @@
 	} from '$lib/convert';
 	import { TF_TO_HORIZON } from '$lib/horizons';
 	import { quoteStore } from '$lib/quote.svelte';
+	import { leagueStore } from '$lib/league.svelte';
 	import { handleOf } from '$lib/handle';
-	import type { Calibration, Forecast, Horizon, Market, Profile } from '$lib/types';
+	import type { Calibration, Forecast, Horizon, League, Market, Profile } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -32,6 +33,18 @@
 	$effect(() => {
 		quoteStore.set(quote);
 	});
+
+	// ---- league (browse any league read-only; forecasting stays on the live one) ----
+	const leagues = $derived((page.data.leagues as League[] | undefined) ?? []);
+	const currentLeague = $derived(
+		(page.data.currentLeague as string | undefined) ||
+			leagues.find((l) => l.isCurrent)?.value ||
+			market.league
+	);
+	let league = $state(
+		untrack(() => page.url.searchParams.get('league') || leagueStore.value || data.market.league)
+	);
+	const isLive = $derived(league === currentLeague);
 
 	function pickDefault(m: Market): number {
 		const q = page.url.searchParams.get('c');
@@ -64,7 +77,8 @@
 	$effect(() => {
 		const apiId = selectedRaw?.apiId;
 		if (!apiId) return;
-		const next = `?c=${encodeURIComponent(apiId)}&q=${quote}`;
+		const lgQs = league && league !== currentLeague ? `&league=${encodeURIComponent(league)}` : '';
+		const next = `?c=${encodeURIComponent(apiId)}&q=${quote}${lgQs}`;
 		if (next === lastSync) return;
 		const first = !synced;
 		synced = true;
@@ -82,16 +96,44 @@
 	const premium = $derived((page.data.premium as boolean | undefined) ?? false);
 
 	let busy = $state(false);
+	async function fetchMarket(lg: string): Promise<Market | null> {
+		const res = await fetch(`/api/market?league=${encodeURIComponent(lg)}`);
+		return res.ok ? ((await res.json()) as Market) : null;
+	}
+	// periodic/manual refresh: same league, keep the user's selected currency
 	async function refresh() {
 		if (busy) return;
 		busy = true;
 		try {
-			const res = await fetch('/api/market');
-			if (res.ok) market = await res.json();
+			const m = await fetchMarket(league);
+			if (m) market = m;
 		} finally {
 			busy = false;
 		}
 	}
+	// league switch: load the new market and reselect a valid currency for it
+	async function loadMarket(lg: string) {
+		busy = true;
+		try {
+			const m = await fetchMarket(lg);
+			if (m) {
+				market = m;
+				selectedId = pickDefault(m);
+			}
+		} finally {
+			busy = false;
+		}
+	}
+	function selectLeague(lg: string) {
+		if (lg === league) return;
+		league = lg;
+		leagueStore.set(lg);
+		loadMarket(lg);
+	}
+	// Honor a stored league when the URL didn't pin one (SSR loaded the live league).
+	onMount(() => {
+		if (!page.url.searchParams.get('league') && league !== market.league) loadMarket(league);
+	});
 	$effect(() => {
 		const id = setInterval(refresh, 5 * 60 * 1000);
 		return () => clearInterval(id);
@@ -111,6 +153,11 @@
 	}
 	$effect(() => {
 		const c = selectedRaw;
+		// forecasting runs on the live league only — skip the fetch when browsing
+		if (!isLive) {
+			forecast = null;
+			return;
+		}
 		if (c) loadForecast(c.apiId);
 	});
 
@@ -172,7 +219,9 @@
 
 <div class="terminal">
 	<Toolbar
-		league={market.league}
+		{league}
+		{leagues}
+		onleague={selectLeague}
 		fetchedAt={market.fetchedAt}
 		{quote}
 		onquote={(q) => (quote = q)}
@@ -197,6 +246,7 @@
 				<PriceChart
 					currency={selectedRaw}
 					{quote}
+					{league}
 					{divineId}
 					{fxRate}
 					{forecast}
@@ -221,6 +271,8 @@
 					active={activeHorizon}
 					{unit}
 					{fxRate}
+					live={isLive}
+					{currentLeague}
 					{signedIn}
 					{userName}
 					{providers}
