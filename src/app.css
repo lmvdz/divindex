@@ -281,12 +281,107 @@ a {
 	color: var(--faint);
 }
 .market-cat {
+	display: flex;
+	gap: 8px;
+	align-items: center;
 	padding: 0 12px 10px;
 	border-bottom: 1px solid var(--border);
 }
 .market-cat .field {
-	text-transform: capitalize;
 	min-height: 34px;
+}
+/* category multi-select combobox */
+.combo {
+	position: relative;
+	flex: 1;
+	min-width: 0;
+}
+.combo-trigger {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	cursor: pointer;
+	text-align: left;
+	overflow: hidden;
+}
+.combo-ph {
+	color: var(--muted);
+}
+.combo-chips {
+	display: flex;
+	gap: 4px;
+	overflow: hidden;
+}
+.combo-chips .chip {
+	background: var(--surface-3);
+	border: 1px solid var(--border-2);
+	border-radius: 6px;
+	padding: 1px 6px;
+	font-size: 11px;
+	white-space: nowrap;
+	color: var(--text);
+}
+.combo-caret {
+	margin-left: auto;
+	color: var(--faint);
+	font-size: 10px;
+}
+.combo-panel {
+	position: absolute;
+	z-index: 30;
+	top: calc(100% + 4px);
+	left: 0;
+	right: 0;
+	background: var(--surface-2);
+	border: 1px solid var(--border-2);
+	border-radius: var(--radius-sm);
+	padding: 6px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.combo-search {
+	width: 100%;
+	margin-bottom: 6px;
+}
+.combo-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	max-height: 240px;
+	overflow-y: auto;
+}
+.combo-opt {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	width: 100%;
+	text-align: left;
+	background: none;
+	border: none;
+	color: var(--muted);
+	padding: 5px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 13px;
+}
+.combo-opt:hover {
+	background: var(--surface-3);
+	color: var(--text);
+}
+.combo-opt.on {
+	color: var(--gold-soft);
+}
+.combo-check {
+	width: 12px;
+	color: var(--gold);
+}
+.combo-clear {
+	color: var(--neg);
+}
+.combo-empty {
+	padding: 6px 8px;
+	color: var(--faint);
+	font-size: 12px;
 }
 .scr-cat {
 	max-width: 170px;

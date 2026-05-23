@@ -5,6 +5,7 @@
 	import ItemIcon from '$lib/components/ItemIcon.svelte';
 	import { showTip, moveTip, hideTip } from '$lib/tooltip.svelte';
 	import { watchlist } from '$lib/watchlist.svelte';
+	import { categoryLabel } from '$lib/categories';
 
 	let {
 		currencies,
@@ -19,17 +20,37 @@
 	} = $props();
 
 	let q = $state('');
-	let cat = $state('all');
 	let sort = $state<'price' | 'name' | 'change'>('price');
 	let favOnly = $state(false);
 
-	const cats = $derived(['all', ...new Set(currencies.map((c) => c.category))]);
+	// category multi-select autocomplete combobox
+	let selectedCats = $state<string[]>([]);
+	let comboOpen = $state(false);
+	let comboQuery = $state('');
+	let comboEl = $state<HTMLDivElement>();
+	const allCats = $derived(
+		[...new Set(currencies.map((c) => c.category))].sort((a, b) => categoryLabel(a).localeCompare(categoryLabel(b)))
+	);
+	const catOptions = $derived(
+		allCats.filter((c) => categoryLabel(c).toLowerCase().includes(comboQuery.trim().toLowerCase()))
+	);
+	function toggleCat(c: string) {
+		selectedCats = selectedCats.includes(c) ? selectedCats.filter((x) => x !== c) : [...selectedCats, c];
+	}
+	$effect(() => {
+		if (!comboOpen) return;
+		const onDoc = (e: PointerEvent) => {
+			if (comboEl && !comboEl.contains(e.target as Node)) comboOpen = false;
+		};
+		document.addEventListener('pointerdown', onDoc);
+		return () => document.removeEventListener('pointerdown', onDoc);
+	});
 
 	const filtered = $derived.by(() => {
 		const term = q.trim().toLowerCase();
 		const list = currencies.filter((c) => {
 			if (favOnly && !watchlist.has(c.apiId)) return false;
-			if (cat !== 'all' && c.category !== cat) return false;
+			if (selectedCats.length && !selectedCats.includes(c.category)) return false;
 			if (!term) return true;
 			return c.name.toLowerCase().includes(term) || ticker(c.apiId).toLowerCase().includes(term);
 		});
@@ -62,12 +83,48 @@
 		<span class="market-count">{filtered.length}</span>
 	</div>
 	<div class="market-cat">
-		<label class="sr-only" for="mk-cat">Category</label>
-		<select id="mk-cat" class="field" bind:value={cat}>
-			{#each cats as c (c)}
-				<option value={c}>{c === 'all' ? 'All categories' : c}</option>
-			{/each}
-		</select>
+		<div class="combo" bind:this={comboEl}>
+			<button
+				class="field combo-trigger"
+				onclick={() => (comboOpen = !comboOpen)}
+				aria-expanded={comboOpen}
+				aria-label="Filter categories"
+			>
+				{#if selectedCats.length === 0}
+					<span class="combo-ph">All categories</span>
+				{:else}
+					<span class="combo-chips">
+						{#each selectedCats as c (c)}<span class="chip">{categoryLabel(c)}</span>{/each}
+					</span>
+				{/if}
+				<span class="combo-caret">▾</span>
+			</button>
+			{#if comboOpen}
+				<div class="combo-panel">
+					<input
+						class="field combo-search"
+						type="search"
+						placeholder="Filter categories…"
+						bind:value={comboQuery}
+						aria-label="Filter categories"
+					/>
+					<ul class="combo-list">
+						{#each catOptions as c (c)}
+							<li>
+								<button class="combo-opt" class:on={selectedCats.includes(c)} onclick={() => toggleCat(c)}>
+									<span class="combo-check">{selectedCats.includes(c) ? '✓' : ''}</span>{categoryLabel(c)}
+								</button>
+							</li>
+						{:else}
+							<li class="combo-empty">No match</li>
+						{/each}
+						{#if selectedCats.length}
+							<li><button class="combo-opt combo-clear" onclick={() => (selectedCats = [])}>Clear selection</button></li>
+						{/if}
+					</ul>
+				</div>
+			{/if}
+		</div>
 		<button
 			class="fav-filter"
 			class:active={favOnly}
