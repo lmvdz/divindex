@@ -119,6 +119,26 @@
 		msg = r.ok ? 'Call locked in.' : (r.error ?? 'Failed.');
 		msgClass = r.ok ? 'ok' : 'err';
 	}
+
+	// one-tap call: predict the current price moved by ±delta% over the horizon.
+	// forecast.price is the live price in Exalted, so submit in Exalted directly.
+	const QUICK = [-10, -5, 5, 10];
+	async function quickCall(deltaPct: number) {
+		if (!forecast || busy) return;
+		msgClass = '';
+		if (needName && !name.trim()) {
+			msg = 'Enter a name first.';
+			msgClass = 'err';
+			return;
+		}
+		const target = forecast.price * (1 + deltaPct / 100);
+		if (!(target > 0)) return;
+		busy = true;
+		const r = await onsubmit(needName ? name.trim() : null, target);
+		busy = false;
+		msg = r.ok ? `Called ${deltaPct > 0 ? '+' : ''}${deltaPct}%.` : (r.error ?? 'Failed.');
+		msgClass = r.ok ? 'ok' : 'err';
+	}
 </script>
 
 <section class="panel forecast" aria-label="Forecast">
@@ -213,6 +233,21 @@
 				{/each}
 			</div>
 		{:else}
+			<div class="fx-quick" role="group" aria-label="Quick call">
+				<span class="fq-label">Quick call</span>
+				{#each QUICK as d (d)}
+					<button
+						type="button"
+						class="fq-btn"
+						class:up={d > 0}
+						class:down={d < 0}
+						disabled={busy}
+						onclick={() => quickCall(d)}
+					>
+						{d > 0 ? '↑' : '↓'}{Math.abs(d)}%
+					</button>
+				{/each}
+			</div>
 			<form class="fx-form" onsubmit={submit} novalidate>
 				{#if needName}
 					<input class="field" placeholder="Name" maxlength="24" bind:value={name} aria-label="Display name" />

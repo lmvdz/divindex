@@ -1115,6 +1115,47 @@ a {
 	margin-top: 4px;
 	font-size: 0.95rem;
 }
+.fx-quick {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+.fq-label {
+	font-size: 0.72rem;
+	color: var(--muted);
+	margin-right: 2px;
+}
+.fq-btn {
+	flex: 1 1 0;
+	min-width: 48px;
+	padding: 6px 8px;
+	font: 600 0.8rem var(--sans);
+	border-radius: 7px;
+	border: 1px solid var(--border-2);
+	background: rgba(255, 255, 255, 0.03);
+	color: var(--text);
+	cursor: pointer;
+	transition:
+		border-color 0.12s ease,
+		background 0.12s ease;
+}
+.fq-btn:hover:not(:disabled) {
+	background: rgba(255, 255, 255, 0.06);
+}
+.fq-btn.up {
+	color: var(--up, #4ec9a0);
+	border-color: color-mix(in srgb, var(--up, #4ec9a0) 35%, var(--border-2));
+}
+.fq-btn.down {
+	color: var(--down, #e06c75);
+	border-color: color-mix(in srgb, var(--down, #e06c75) 35%, var(--border-2));
+}
+.fq-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
 .fx-form {
 	display: flex;
 	flex-wrap: wrap;
@@ -1374,6 +1415,20 @@ a {
 	padding: 0;
 	background: var(--bg);
 	border-bottom: 1px solid var(--border);
+}
+.expand-actions {
+	display: flex;
+	justify-content: flex-end;
+	padding: 8px 10px 0;
+}
+.predict-link {
+	font-size: 0.78rem;
+	font-weight: 600;
+	color: var(--gold);
+	text-decoration: none;
+}
+.predict-link:hover {
+	color: var(--gold-soft, var(--gold));
 }
 .expand-chart {
 	height: 340px;

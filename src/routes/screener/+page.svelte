@@ -270,6 +270,9 @@
 							{@const raw = rawById.get(c.id) ?? c}
 							<tr class="expand-row">
 								<td colspan="11">
+									<div class="expand-actions">
+										<a class="predict-link" href="/?c={c.apiId}">Forecast {c.name} →</a>
+									</div>
 									<div class="expand-chart">
 										<PriceChart
 											currency={raw}
