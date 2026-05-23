@@ -57,6 +57,15 @@
 	let failed = $state(false);
 	let loading = $state(false);
 	let candles = $state<Candle[]>([]);
+	// lazy history paging (TradingView-style): keep the raw (Exalted) candles we've
+	// loaded so far and pull older pages from the server's cached set on scroll-back.
+	let rawItem: Candle[] = [];
+	let rawDivine: Candle[] = [];
+	let oldestTime = Infinity;
+	let hasMore = false;
+	let pageLoading = false;
+	const RECENT = 1500; // initial window (covers daily/weekly fully; 1h pages back)
+	const PAGE = 1500; // older candles fetched per scroll-back
 
 	let legPrice = $state(0);
 	let legChg = $state(0);
@@ -147,11 +156,11 @@
 		seriesKind = kind;
 	}
 
-	function paint() {
+	function paint(fit = true) {
 		if (!ready || !series) return;
 		const data = seriesKind === 'line' ? candles.map((c) => ({ time: c.time, value: c.close })) : candles;
 		series.setData(data as never);
-		chart?.timeScale().fitContent();
+		if (fit) chart?.timeScale().fitContent();
 		resetLegend();
 	}
 
@@ -380,14 +389,72 @@
 		chart.timeScale().fitContent();
 	}
 
-	async function loadCandles(id: number, tf: Timeframe): Promise<Candle[]> {
+	// Conversion to Divine is needed when viewing Exalted itself (inverse of Divine)
+	// or any non-Divine currency quoted in Divine — both join against Divine candles.
+	const needsDivine = (c: Currency, q: Quote) =>
+		c.apiId === 'exalted' || (effectiveQuote(c.apiId, q) === 'divine' && c.apiId !== 'divine');
+
+	async function fetchPage(
+		id: number,
+		tf: Timeframe,
+		before: number | null,
+		limit: number
+	): Promise<{ candles: Candle[]; hasMore: boolean }> {
 		try {
-			const r = await fetch(`/api/history/${id}?tf=${tf}&league=${encodeURIComponent(league)}`);
-			const d = r.ok ? ((await r.json()) as { candles?: Candle[] }) : { candles: [] };
-			return d.candles ?? [];
+			const qs = new URLSearchParams({ tf, league, limit: String(limit) });
+			if (before != null && Number.isFinite(before)) qs.set('before', String(before));
+			const r = await fetch(`/api/history/${id}?${qs.toString()}`);
+			if (!r.ok) return { candles: [], hasMore: false };
+			const d = (await r.json()) as { candles?: Candle[]; hasMore?: boolean };
+			return { candles: d.candles ?? [], hasMore: !!d.hasMore };
 		} catch {
-			return [];
+			return { candles: [], hasMore: false };
 		}
+	}
+
+	// Convert the accumulated raw (Exalted) candles to the active quote, then run the
+	// gapless pass over the WHOLE set so prepended older pages stitch seamlessly.
+	function convertCandles(itemRaw: Candle[], divRaw: Candle[], c: Currency, q: Quote): Candle[] {
+		let cs = itemRaw;
+		if (c.apiId === 'exalted') {
+			// Exalted is flat 1.0 in Exalted; its real movement vs Divine is the inverse
+			// of Divine's candle (high/low swap on inversion) — render real candles.
+			if (divRaw.length) {
+				const inv = (x: number) => (x ? 1 / x : 0);
+				const volByT = new Map(itemRaw.map((k) => [k.time, k.volume]));
+				cs = divRaw.map((d) => ({
+					time: d.time,
+					open: inv(d.open),
+					high: inv(d.low),
+					low: inv(d.high),
+					close: inv(d.close),
+					volume: volByT.get(d.time) ?? d.volume
+				}));
+			}
+		} else if (effectiveQuote(c.apiId, q) === 'divine' && c.apiId !== 'divine') {
+			const byT = new Map(divRaw.map((k) => [k.time, k.close]));
+			const fallback = divRaw.length ? divRaw[divRaw.length - 1].close : fxRate || 1;
+			cs = itemRaw.map((k) => {
+				const dv = byT.get(k.time) ?? fallback;
+				return {
+					time: k.time,
+					open: k.open / dv,
+					high: k.high / dv,
+					low: k.low / dv,
+					close: k.close / dv,
+					volume: k.volume
+				};
+			});
+		}
+		// gapless (clone first so we never mutate the cached raw arrays)
+		const out = cs.map((k) => ({ ...k }));
+		for (let i = 1; i < out.length; i++) {
+			const o = out[i - 1].close;
+			out[i].open = o;
+			if (o > out[i].high) out[i].high = o;
+			if (o < out[i].low) out[i].low = o;
+		}
+		return out;
 	}
 
 	async function loadHistory(c: Currency, q: Quote, tf: Timeframe) {
@@ -395,62 +462,71 @@
 		if (ready && seriesKind !== kind) setupSeries(kind);
 		loading = true;
 		try {
-			let cs = await loadCandles(c.id, tf);
-			if (!cs.length) cs = synth(c);
-			if (c.apiId === 'exalted') {
-				// Exalted is the base unit (flat 1.0 in Exalted), so its real movement
-				// against Divine IS the inverse of Divine's candle. Invert the OHLC
-				// (high/low swap on inversion) so we render proper candles, not dojis.
-				const dc = await loadCandles(divineId, tf);
-				if (dc.length) {
-					const inv = (x: number) => (x ? 1 / x : 0);
-					const volByT = new Map(cs.map((k) => [k.time, k.volume]));
-					cs = dc.map((d) => ({
-						time: d.time,
-						open: inv(d.open),
-						high: inv(d.low),
-						low: inv(d.high),
-						close: inv(d.close),
-						volume: volByT.get(d.time) ?? d.volume
-					}));
-				}
-			} else if (effectiveQuote(c.apiId, q) === 'divine' && c.apiId !== 'divine') {
-				const dc = await loadCandles(divineId, tf);
-				const byT = new Map(dc.map((k) => [k.time, k.close]));
-				const fallback = dc.length ? dc[dc.length - 1].close : fxRate || 1;
-				cs = cs.map((k) => {
-					const dv = byT.get(k.time) ?? fallback;
-					return {
-						time: k.time,
-						open: k.open / dv,
-						high: k.high / dv,
-						low: k.low / dv,
-						close: k.close / dv,
-						volume: k.volume
-					};
-				});
-			}
-			// keep candles gapless AFTER any quote conversion — dividing each candle
-			// by its own bucket's divine rate otherwise reintroduces open/close gaps
-			// in non-Exalted quotes (open/dv[i] ≠ prevClose/dv[i-1]).
-			for (let i = 1; i < cs.length; i++) {
-				const o = cs[i - 1].close;
-				cs[i].open = o;
-				if (o > cs[i].high) cs[i].high = o;
-				if (o < cs[i].low) cs[i].low = o;
-			}
-			candles = cs;
+			const item = await fetchPage(c.id, tf, null, RECENT);
+			let itemRaw = item.candles;
+			let div = { candles: [] as Candle[], hasMore: false };
+			if (needsDivine(c, q) && itemRaw.length) div = await fetchPage(divineId, tf, null, RECENT);
+			if (!itemRaw.length) itemRaw = synth(c);
+			rawItem = itemRaw;
+			rawDivine = div.candles;
+			candles = convertCandles(rawItem, rawDivine, c, q);
+			oldestTime = candles.length ? candles[0].time : Infinity;
+			hasMore = c.apiId === 'exalted' ? div.hasMore : item.hasMore;
 		} finally {
 			loading = false;
 		}
 		chart?.applyOptions({ timeScale: { timeVisible: intraday, secondsVisible: false } });
-		paint();
+		paint(true);
 		drawVolume();
 		drawEMA();
 		drawForecast();
 		drawBB();
 		drawVWAP();
 		drawCone();
+		// large series: show the recent window so we don't auto-page; older loads on scroll
+		if (hasMore && candles.length > 400) {
+			chart?.timeScale().setVisibleLogicalRange({ from: candles.length - 400, to: candles.length });
+		}
+	}
+
+	// Pull the next older page and prepend it, keeping the same bars in view (shift
+	// the visible logical range by however many older bars we added).
+	async function loadOlder() {
+		if (pageLoading || !hasMore || !ready || !chart) return;
+		pageLoading = true;
+		const c = currency;
+		const q = quote;
+		const tf = timeframe;
+		const before = oldestTime;
+		try {
+			const item = await fetchPage(c.id, tf, before, PAGE);
+			let div = { candles: [] as Candle[], hasMore: false };
+			if (needsDivine(c, q)) div = await fetchPage(divineId, tf, before, PAGE);
+			if (!item.candles.length && !div.candles.length) {
+				hasMore = false;
+				return;
+			}
+			rawItem = [...item.candles, ...rawItem];
+			rawDivine = [...div.candles, ...rawDivine];
+			const range = chart.timeScale().getVisibleLogicalRange();
+			const prevLen = candles.length;
+			candles = convertCandles(rawItem, rawDivine, c, q);
+			oldestTime = candles.length ? candles[0].time : oldestTime;
+			hasMore = c.apiId === 'exalted' ? div.hasMore : item.hasMore;
+			const added = candles.length - prevLen;
+			paint(false);
+			drawVolume();
+			drawEMA();
+			drawForecast();
+			drawBB();
+			drawVWAP();
+			drawCone();
+			if (range && added > 0) {
+				chart.timeScale().setVisibleLogicalRange({ from: range.from + added, to: range.to + added });
+			}
+		} finally {
+			pageLoading = false;
+		}
 	}
 
 	onMount(() => {
@@ -495,6 +571,10 @@
 					} else {
 						resetLegend();
 					}
+				});
+				// lazy history: when the user scrolls near the left edge, pull older bars
+				chart.timeScale().subscribeVisibleLogicalRangeChange((range) => {
+					if (range && range.from < 8) loadOlder();
 				});
 				ready = true;
 				paint();
