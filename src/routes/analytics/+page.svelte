@@ -25,6 +25,7 @@
 	// price alerts (premium)
 	let alerts = $state<AlertRule[]>(untrack(() => data.alerts ?? []));
 	let aCur = $state('');
+	let aKind = $state('price');
 	let aDir = $state('above');
 	let aPrice = $state<number | null>(null);
 	let aHook = $state('');
@@ -43,7 +44,7 @@
 			const res = await fetch('/api/alerts', {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ currency: aCur, dir: aDir, price: aPrice, webhook: aHook.trim() || undefined })
+				body: JSON.stringify({ currency: aCur, kind: aKind, dir: aDir, price: aPrice, webhook: aHook.trim() || undefined })
 			});
 			const out = await res.json();
 			if (!res.ok) {
@@ -448,11 +449,15 @@
 							<option value="" disabled>Currency…</option>
 							{#each markets as m (m.apiId)}<option value={m.apiId}>{m.name}</option>{/each}
 						</select>
-						<select class="field" bind:value={aDir} aria-label="Direction">
-							<option value="above">rises above</option>
-							<option value="below">falls below</option>
+						<select class="field" bind:value={aKind} aria-label="Alert kind">
+							<option value="price">price</option>
+							<option value="fairdev">fair-value %</option>
 						</select>
-						<input class="field" type="number" step="0.0001" min="0" placeholder="Price (Exalted)" bind:value={aPrice} aria-label="Threshold price" />
+						<select class="field" bind:value={aDir} aria-label="Direction">
+							<option value="above">{aKind === 'fairdev' ? 'rich by ≥' : 'rises above'}</option>
+							<option value="below">{aKind === 'fairdev' ? 'cheap by ≥' : 'falls below'}</option>
+						</select>
+						<input class="field" type="number" step="0.0001" min="0" placeholder={aKind === 'fairdev' ? 'Deviation %' : 'Price (Exalted)'} bind:value={aPrice} aria-label="Threshold" />
 						<input class="field" type="url" placeholder="Discord webhook (optional)" bind:value={aHook} aria-label="Discord webhook" />
 						<button class="btn btn-primary" type="submit" disabled={aBusy}>Add alert</button>
 						<span class="form-msg" role="status" aria-live="polite">{aMsg}</span>
@@ -461,7 +466,7 @@
 						<ul class="an-list alert-list">
 							{#each alerts as a (a.id)}
 								<li>
-									<span><a href="/?c={a.apiId}">{a.name}</a> {a.dir} <b class="mono">{a.price}</b> EX</span>
+									<span><a href="/?c={a.apiId}">{a.name}</a> {a.dir} <b class="mono">{a.price}</b>{a.kind === 'fairdev' ? '% vs fair' : ' EX'}</span>
 									<span class="muted">{a.webhook ? '🔔 Discord' : 'in-app'}{a.triggeredAt ? ' · fired' : ''}</span>
 									<button class="share-btn" onclick={() => deleteAlert(a.id)}>Remove</button>
 								</li>

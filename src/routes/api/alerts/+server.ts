@@ -22,12 +22,14 @@ export const POST: RequestHandler = async ({ request, locals, platform, cookies 
 
 	const body = (await request.json().catch(() => ({}))) as {
 		currency?: string;
+		kind?: string;
 		dir?: string;
 		price?: unknown;
 		webhook?: string;
 	};
 	const price = Number(body.price);
 	const dir = body.dir === 'below' ? 'below' : 'above';
+	const kind = body.kind === 'fairdev' ? 'fairdev' : 'price';
 	if (!body.currency || !Number.isFinite(price) || price <= 0) {
 		return json({ error: 'Pick a currency and a positive price.' }, { status: 400 });
 	}
@@ -39,7 +41,7 @@ export const POST: RequestHandler = async ({ request, locals, platform, cookies 
 		return json({ error: 'Webhook must be a discord.com webhook URL.' }, { status: 400 });
 	}
 
-	const rule = await addAlert(platform, { pid, apiId: c.apiId, name: c.name, dir, price, webhook });
+	const rule = await addAlert(platform, { pid, apiId: c.apiId, name: c.name, kind, dir, price, webhook });
 	if (!rule) return json({ error: 'Alert limit reached (50).' }, { status: 400 });
 	return json({ alerts: await listAlerts(platform, pid) });
 };

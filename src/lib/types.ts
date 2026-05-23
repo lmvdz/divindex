@@ -262,8 +262,9 @@ export interface AlertRule {
 	pid: string;
 	apiId: string;
 	name: string;
+	kind?: 'price' | 'fairdev'; // price threshold (Exalted) | fair-value deviation (%) — default price
 	dir: 'above' | 'below';
-	price: number; // threshold, Exalted
+	price: number; // threshold: Exalted for price, percent for fairdev
 	webhook?: string; // optional Discord webhook for delivery
 	createdAt: number;
 	triggeredAt?: number;

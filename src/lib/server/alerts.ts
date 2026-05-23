@@ -48,7 +48,11 @@ export async function removeAlert(platform: Plat, pid: string, id: string): Prom
 	await save(kv, rules);
 }
 
-export async function evalAlerts(platform: Plat, market: Market): Promise<number> {
+export async function evalAlerts(
+	platform: Plat,
+	market: Market,
+	devOf?: (apiId: string) => number | undefined // fair-value deviation %, for fairdev alerts
+): Promise<number> {
 	const kv = kvOf(platform);
 	const rules = await load(kv);
 	if (!rules.length) return 0;
@@ -57,9 +61,19 @@ export async function evalAlerts(platform: Plat, market: Market): Promise<number
 	let fired = 0;
 	let changed = false;
 	for (const r of rules) {
-		const price = pm.get(r.apiId);
-		if (price == null) continue;
-		const met = r.dir === 'above' ? price >= r.price : price <= r.price;
+		let met = false;
+		let content = '';
+		if (r.kind === 'fairdev') {
+			const dev = devOf?.(r.apiId);
+			if (dev == null) continue;
+			met = r.dir === 'above' ? dev >= r.price : dev <= -r.price;
+			content = `🔔 **${r.name}** is ${dev >= 0 ? '+' : ''}${dev}% vs fair value.`;
+		} else {
+			const price = pm.get(r.apiId);
+			if (price == null) continue;
+			met = r.dir === 'above' ? price >= r.price : price <= r.price;
+			content = `🔔 **${r.name}** is ${r.dir} ${r.price} Exalted (now ${price.toFixed(4)}).`;
+		}
 		if (!met) continue;
 		if (r.triggeredAt && now - r.triggeredAt < COOLDOWN) continue;
 		r.triggeredAt = now;
@@ -70,10 +84,7 @@ export async function evalAlerts(platform: Plat, market: Market): Promise<number
 				await fetch(r.webhook, {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({
-						username: 'Divindex',
-						content: `🔔 **${r.name}** is ${r.dir} ${r.price} Exalted (now ${price.toFixed(4)}). https://divindex.com/?c=${r.apiId}`
-					})
+					body: JSON.stringify({ username: 'Divindex', content: `${content} https://divindex.com/?c=${r.apiId}` })
 				});
 			} catch {
 				/* delivery best-effort */
