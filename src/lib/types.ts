@@ -186,6 +186,18 @@ export interface MyAnalytics {
 	byHorizon: MyBreakdown[];
 }
 
+export interface AlertRule {
+	id: string;
+	pid: string;
+	apiId: string;
+	name: string;
+	dir: 'above' | 'below';
+	price: number; // threshold, Exalted
+	webhook?: string; // optional Discord webhook for delivery
+	createdAt: number;
+	triggeredAt?: number;
+}
+
 export interface Economy {
 	marketCap: number;
 	volume: number;

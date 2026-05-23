@@ -1923,3 +1923,16 @@ a {
 .corr td {
 	color: var(--text);
 }
+.alert-form {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: center;
+	margin-bottom: 14px;
+}
+.alert-form .field {
+	min-width: 130px;
+}
+.alert-list li {
+	gap: 12px;
+}

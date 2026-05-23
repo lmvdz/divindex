@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { getMarket } from '$lib/server/poe2scout';
 import { getCalibration, getLadder } from '$lib/server/forecast';
+import { evalAlerts } from '$lib/server/alerts';
 import type { RequestHandler } from './$types';
 
 // Hourly maintenance tick (hit by a scheduler): warms the poe2scout caches so
@@ -20,9 +21,10 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 
 	const t0 = Date.now();
 	const market = await getMarket(); // warm market + poe2scout edge cache
-	const [ladder, calib] = await Promise.all([
+	const [ladder, calib, alertsFired] = await Promise.all([
 		getLadder(platform, market, undefined), // settle + score due forecasts
-		getCalibration(platform, market)
+		getCalibration(platform, market),
+		evalAlerts(platform, market) // fire any tripped premium price alerts
 	]);
 
 	return json({
@@ -31,6 +33,7 @@ export const GET: RequestHandler = async ({ url, platform }) => {
 		league: market.league,
 		currencies: market.currencies.length,
 		diviners: ladder.top.length,
-		settledSample: calib.overall.n
+		settledSample: calib.overall.n,
+		alertsFired
 	});
 };

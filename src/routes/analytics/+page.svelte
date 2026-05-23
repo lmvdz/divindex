@@ -1,20 +1,65 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { signIn } from '@auth/sveltekit/client';
 	import { page } from '$app/state';
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
+	import type { AlertRule } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	const signedIn = $derived(!!(page.data.session as { user?: unknown } | null)?.user);
 
-	type Tab = 'market' | 'smart' | 'me';
+	type Tab = 'market' | 'smart' | 'me' | 'alerts';
 	let tab = $state<Tab>('market');
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'market', label: 'Market intelligence' },
 		{ id: 'smart', label: 'Smart money' },
-		{ id: 'me', label: 'My performance' }
+		{ id: 'me', label: 'My performance' },
+		{ id: 'alerts', label: 'Alerts' }
 	];
+
+	// price alerts (premium)
+	let alerts = $state<AlertRule[]>(untrack(() => data.alerts ?? []));
+	let aCur = $state('');
+	let aDir = $state('above');
+	let aPrice = $state<number | null>(null);
+	let aHook = $state('');
+	let aMsg = $state('');
+	let aBusy = $state(false);
+
+	async function createAlert(e: SubmitEvent) {
+		e.preventDefault();
+		aMsg = '';
+		if (!aCur || aPrice == null || !(aPrice > 0)) {
+			aMsg = 'Pick a currency and a positive price.';
+			return;
+		}
+		aBusy = true;
+		try {
+			const res = await fetch('/api/alerts', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ currency: aCur, dir: aDir, price: aPrice, webhook: aHook.trim() || undefined })
+			});
+			const out = await res.json();
+			if (!res.ok) {
+				aMsg = out.error ?? 'Failed.';
+				return;
+			}
+			alerts = out.alerts;
+			aPrice = null;
+			aMsg = 'Alert added.';
+		} catch {
+			aMsg = 'Network error.';
+		} finally {
+			aBusy = false;
+		}
+	}
+	async function deleteAlert(id: string) {
+		const res = await fetch(`/api/alerts?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+		if (res.ok) alerts = (await res.json()).alerts;
+	}
 
 	const pct = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(1)}%`;
 	const cls = (x: number) => (x > 0 ? 'pos' : x < 0 ? 'neg' : '');
@@ -44,7 +89,7 @@
 	</header>
 
 	<main class="scr-body" id="main">
-		{#if !data.premium || !data.market || !data.smart || !data.me}
+		{#if !data.premium || !data.market || !data.smart || !data.me || !data.markets}
 			<section class="upsell">
 				<span class="eyebrow">Divindex Pro</span>
 				<h1>Analytics suite</h1>
@@ -67,6 +112,7 @@
 			{@const market = data.market}
 			{@const smart = data.smart}
 			{@const me = data.me}
+			{@const markets = data.markets}
 			<div class="scr-meta">
 				<span class="eyebrow">Analytics <span class="pro-pill">PRO</span></span>
 				<span class="muted">{market.league} · live market + crowd intelligence</span>
@@ -170,7 +216,7 @@
 						<p class="muted">No qualifying signals yet — need ≥2 top-forecaster calls on an open epoch. Builds as the game gets played.</p>
 					{/if}
 				</section>
-			{:else}
+			{:else if tab === 'me'}
 				{#if me.calls > 0}
 					<section class="prof-stats">
 						<div><span class="st-label">Settled calls</span><b class="mono">{me.calls}</b></div>
@@ -209,6 +255,37 @@
 				{:else}
 					<p class="muted">No settled calls yet. Make some forecasts on the <a href="/">terminal</a> — your performance shows up here once they settle.</p>
 				{/if}
+			{:else}
+				<section class="an-card wide">
+					<h3>Price alerts</h3>
+					<form class="alert-form" onsubmit={createAlert}>
+						<select class="field" bind:value={aCur} aria-label="Currency">
+							<option value="" disabled>Currency…</option>
+							{#each markets as m (m.apiId)}<option value={m.apiId}>{m.name}</option>{/each}
+						</select>
+						<select class="field" bind:value={aDir} aria-label="Direction">
+							<option value="above">rises above</option>
+							<option value="below">falls below</option>
+						</select>
+						<input class="field" type="number" step="0.0001" min="0" placeholder="Price (Exalted)" bind:value={aPrice} aria-label="Threshold price" />
+						<input class="field" type="url" placeholder="Discord webhook (optional)" bind:value={aHook} aria-label="Discord webhook" />
+						<button class="btn btn-primary" type="submit" disabled={aBusy}>Add alert</button>
+						<span class="form-msg" role="status" aria-live="polite">{aMsg}</span>
+					</form>
+					{#if alerts.length}
+						<ul class="an-list alert-list">
+							{#each alerts as a (a.id)}
+								<li>
+									<span><a href="/?c={a.apiId}">{a.name}</a> {a.dir} <b class="mono">{a.price}</b> EX</span>
+									<span class="muted">{a.webhook ? '🔔 Discord' : 'in-app'}{a.triggeredAt ? ' · fired' : ''}</span>
+									<button class="share-btn" onclick={() => deleteAlert(a.id)}>Remove</button>
+								</li>
+							{/each}
+						</ul>
+					{:else}
+						<p class="muted">No alerts yet. Add one above — it's checked hourly and (optionally) pings your Discord channel.</p>
+					{/if}
+				</section>
 			{/if}
 		{/if}
 	</main>
