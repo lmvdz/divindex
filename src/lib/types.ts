@@ -270,6 +270,24 @@ export interface AlertRule {
 	triggeredAt?: number;
 }
 
+export interface AiRec {
+	item: string;
+	apiId?: string;
+	action: 'buy' | 'sell' | 'hold';
+	target?: number;
+	confidence: number; // 0..1
+	horizon: string;
+	rationale: string;
+}
+
+export interface AiBriefing {
+	configured: boolean;
+	updatedAt: number;
+	model?: string;
+	recommendations: AiRec[];
+	note?: string;
+}
+
 export interface Economy {
 	marketCap: number;
 	volume: number;

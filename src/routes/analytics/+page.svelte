@@ -4,23 +4,37 @@
 	import { page } from '$app/state';
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
-	import type { AlertRule, Holding, Portfolio } from '$lib/types';
+	import type { AiBriefing, AlertRule, Holding, Portfolio } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	const signedIn = $derived(!!(page.data.session as { user?: unknown } | null)?.user);
 
-	type Tab = 'market' | 'smart' | 'fair' | 'arb' | 'me' | 'port' | 'alerts';
+	type Tab = 'market' | 'smart' | 'ai' | 'fair' | 'arb' | 'me' | 'port' | 'alerts';
 	let tab = $state<Tab>('market');
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'market', label: 'Market intelligence' },
 		{ id: 'smart', label: 'Signal' },
+		{ id: 'ai', label: 'AI Analyst' },
 		{ id: 'fair', label: 'Fair value' },
 		{ id: 'arb', label: 'Arbitrage' },
 		{ id: 'me', label: 'My performance' },
 		{ id: 'port', label: 'Portfolio' },
 		{ id: 'alerts', label: 'Alerts' }
 	];
+
+	// AI analyst (premium, on-demand to bound LLM cost)
+	let ai = $state<AiBriefing | null>(null);
+	let aiBusy = $state(false);
+	async function loadAi() {
+		aiBusy = true;
+		try {
+			const r = await fetch('/api/analytics/ai');
+			if (r.ok) ai = await r.json();
+		} finally {
+			aiBusy = false;
+		}
+	}
 
 	// price alerts (premium)
 	let alerts = $state<AlertRule[]>(untrack(() => data.alerts ?? []));
@@ -311,6 +325,35 @@
 						</ul>
 					</section>
 				{/if}
+			{:else if tab === 'ai'}
+				<section class="an-card wide">
+					<div class="ai-head">
+						<h3>AI Analyst <span class="muted">— grounded in Signal + fair value + market</span></h3>
+						<button class="btn btn-ghost" onclick={loadAi} disabled={aiBusy}>{aiBusy ? 'Thinking…' : ai ? 'Refresh' : 'Generate briefing'}</button>
+					</div>
+					{#if ai && ai.configured && ai.recommendations.length}
+						<ul class="an-list ai-list">
+							{#each ai.recommendations as r, i (i)}
+								<li class="ai-rec">
+									<div class="ai-row">
+										<span class="ai-action {r.action}">{r.action}</span>
+										{#if r.apiId}<a href="/?c={r.apiId}">{r.item}</a>{:else}<b>{r.item}</b>{/if}
+										{#if r.target}<span class="muted">target {fmt(r.target)}</span>{/if}
+										<span class="muted">· {r.horizon} · {Math.round(r.confidence * 100)}% conf</span>
+									</div>
+									<p class="ai-why">{r.rationale}</p>
+								</li>
+							{/each}
+						</ul>
+						<p class="muted">AI analysis of a game economy for entertainment — not financial advice. Updated {new Date(ai.updatedAt).toLocaleString()}.</p>
+					{:else if ai && !ai.configured}
+						<p class="muted">{ai.note}</p>
+					{:else if ai}
+						<p class="muted">{ai.note ?? 'No recommendations yet.'}</p>
+					{:else}
+						<p class="muted">Generate a data-grounded briefing — buy/sell/hold calls with rationale, built from the Signal, fair-value mispricings, and market breadth.</p>
+					{/if}
+				</section>
 			{:else if tab === 'fair'}
 				<section class="an-card wide">
 					<h3>Divindex Fair Value <span class="muted">— biggest mispricings vs liquidity-weighted fair</span></h3>
