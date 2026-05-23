@@ -3,6 +3,7 @@
 	import { timeOf } from '$lib/format';
 	import { QUOTE_SHORT, type Quote } from '$lib/convert';
 	import LeagueSelect from '$lib/components/LeagueSelect.svelte';
+	import Nav from '$lib/components/Nav.svelte';
 	import type { League } from '$lib/types';
 
 	let {
@@ -41,14 +42,7 @@
 		<span class="orb" aria-hidden="true"></span>
 		<span class="brand-word">Divindex</span>
 	</a>
-	<nav class="tb-nav">
-		<a href="/" aria-current="page" class="active">Terminal</a>
-		<a href="/screener">Screener</a>
-		<a href="/ladder">Ladder</a>
-		<a href="/me">My calls</a>
-		<a href="/crafts">Crafts</a>
-		<a href="/analytics">Analytics</a>
-	</nav>
+	<Nav current="/" />
 	<LeagueSelect {leagues} value={league} onchange={onleague} />
 	<span class="tb-spacer"></span>
 	<div class="quote-toggle" role="group" aria-label="Quote currency">

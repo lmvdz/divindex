@@ -2,6 +2,7 @@
 	import { signIn } from '@auth/sveltekit/client';
 	import { page } from '$app/state';
 	import { fmt } from '$lib/format';
+	import Nav from '$lib/components/Nav.svelte';
 	import type { Horizon } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -45,14 +46,7 @@
 			<span class="orb" aria-hidden="true"></span>
 			<span class="brand-word">Divindex</span>
 		</a>
-		<nav class="tb-nav">
-			<a href="/">Terminal</a>
-			<a href="/screener">Screener</a>
-			<a href="/ladder">Ladder</a>
-			<a href="/me" aria-current="page" class="active">My calls</a>
-			<a href="/crafts">Crafts</a>
-			<a href="/analytics">Analytics</a>
-		</nav>
+		<Nav current="/me" />
 	</header>
 
 	<main class="scr-body" id="main">

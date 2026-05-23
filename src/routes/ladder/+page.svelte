@@ -6,6 +6,7 @@
 	import { CHALLENGES, completedCount, divinerTitle, isDone, nextTier } from '$lib/challenges';
 	import { handleOf } from '$lib/handle';
 	import { ladderUrl, profileUrl, shareOrCopy, tweetIntent } from '$lib/share';
+	import Nav from '$lib/components/Nav.svelte';
 	import type { Horizon, Ladder } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -71,13 +72,7 @@
 			<span class="orb" aria-hidden="true"></span>
 			<span class="brand-word">Divindex</span>
 		</a>
-		<nav class="tb-nav">
-			<a href="/">Terminal</a>
-			<a href="/screener">Screener</a>
-			<a href="/ladder" aria-current="page" class="active">Ladder</a>
-			<a href="/crafts">Crafts</a>
-			<a href="/analytics">Analytics</a>
-		</nav>
+		<Nav current="/ladder" />
 		<span class="lg-chip" title="Active league">{ladder.league}</span>
 		<span class="tb-spacer"></span>
 		<div class="quote-toggle" role="group" aria-label="Ladder scope">

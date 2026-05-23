@@ -5,6 +5,7 @@
 	import { quoteStore } from '$lib/quote.svelte';
 	import { leagueStore } from '$lib/league.svelte';
 	import LeagueSelect from '$lib/components/LeagueSelect.svelte';
+	import Nav from '$lib/components/Nav.svelte';
 	import { fmt, compact, signStr, signClass, ticker } from '$lib/format';
 	import {
 		convertMarket,
@@ -135,14 +136,7 @@
 			<span class="orb" aria-hidden="true"></span>
 			<span class="brand-word">Divindex</span>
 		</a>
-		<nav class="tb-nav">
-			<a href="/">Terminal</a>
-			<a href="/screener" aria-current="page" class="active">Screener</a>
-			<a href="/ladder">Ladder</a>
-			<a href="/me">My calls</a>
-			<a href="/crafts">Crafts</a>
-			<a href="/analytics">Analytics</a>
-		</nav>
+		<Nav current="/screener" />
 		<span class="tb-spacer"></span>
 		<LeagueSelect {leagues} value={league} onchange={selectLeague} />
 		<div class="quote-toggle" role="group" aria-label="Quote currency">

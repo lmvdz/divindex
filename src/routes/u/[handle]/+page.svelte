@@ -3,6 +3,7 @@
 	import { BADGES, RARITY_COLOR, badgeById } from '$lib/badges';
 	import { CHALLENGES, completedCount, divinerTitle, isDone, nextTier } from '$lib/challenges';
 	import { ladderUrl, shareOrCopy, tweetIntent } from '$lib/share';
+	import Nav from '$lib/components/Nav.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -50,11 +51,7 @@
 			<span class="orb" aria-hidden="true"></span>
 			<span class="brand-word">Divindex</span>
 		</a>
-		<nav class="tb-nav">
-			<a href="/">Terminal</a>
-			<a href="/screener">Screener</a>
-			<a href="/ladder">Ladder</a>
-		</nav>
+		<Nav />
 		<span class="lg-chip" title="Active league">{data.league}</span>
 	</header>
 

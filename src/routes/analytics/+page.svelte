@@ -9,6 +9,7 @@
 	import { leagueStore } from '$lib/league.svelte';
 	import PerfChart from '$lib/components/PerfChart.svelte';
 	import LeagueSelect from '$lib/components/LeagueSelect.svelte';
+	import Nav from '$lib/components/Nav.svelte';
 	import type { AiBriefing, AlertRule, Holding, League, Portfolio } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -213,14 +214,7 @@
 			<span class="orb" aria-hidden="true"></span>
 			<span class="brand-word">Divindex</span>
 		</a>
-		<nav class="tb-nav">
-			<a href="/">Terminal</a>
-			<a href="/screener">Screener</a>
-			<a href="/ladder">Ladder</a>
-			<a href="/me">My calls</a>
-			<a href="/crafts">Crafts</a>
-			<a href="/analytics" aria-current="page" class="active">Analytics<span class="pro-pill">PRO</span></a>
-		</nav>
+		<Nav current="/analytics" />
 		{#if data.premium}
 			<span class="tb-spacer"></span>
 			<LeagueSelect {leagues} value={league} onchange={selectLeague} />

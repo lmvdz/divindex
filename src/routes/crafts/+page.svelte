@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { fmt } from '$lib/format';
+	import Nav from '$lib/components/Nav.svelte';
 	import type { PageData } from './$types';
 
 	interface Craft {
@@ -40,13 +41,7 @@
 			<span class="orb" aria-hidden="true"></span>
 			<span class="brand-word">Divindex</span>
 		</a>
-		<nav class="tb-nav">
-			<a href="/">Terminal</a>
-			<a href="/screener">Screener</a>
-			<a href="/ladder">Ladder</a>
-			<a href="/crafts" aria-current="page" class="active">Crafts</a>
-			<a href="/analytics">Analytics</a>
-		</nav>
+		<Nav current="/crafts" />
 	</header>
 
 	<main class="scr-body" id="main">
