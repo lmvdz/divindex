@@ -43,7 +43,10 @@ export function getArbitrage(market: Market): Arbitrage {
 		if (!/shard$/i.test(s.name.trim()) || !(s.price > 0)) continue;
 		const root = s.name.trim().replace(/\s*Shard$/i, '').trim();
 		if (!root) continue;
-		const orb = cur.find((c) => c.apiId !== s.apiId && /orb/i.test(c.name) && c.name.includes(root));
+		// match the BASE orb exactly ("Regal Orb" / "Orb of Transmutation"), not
+		// Perfect/Greater/Lesser variants — shards combine into the base orb only.
+		const want = [`${root} orb`, `orb of ${root}`].map((w) => w.toLowerCase());
+		const orb = cur.find((c) => c.apiId !== s.apiId && want.includes(c.name.trim().toLowerCase()));
 		if (!orb || !(orb.price > 0)) continue;
 		const edge = orb.price - SHARDS_PER_ORB * s.price;
 		shards.push({

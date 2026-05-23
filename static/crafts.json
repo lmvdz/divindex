@@ -1,7 +1,56 @@
 {
-	"generatedAt": null,
-	"league": null,
-	"crafts": [],
-	"note": "Pending first run. Generate with the `poe2-craft-profit` Claude Code skill (uses your subscription): it joins live poe2scout prices with open crafting mechanics from Path of Crafting (MIT) + poe2db.tw and writes the ranked report here.",
-	"sources": ["poe2scout.com", "Path of Crafting (MIT)", "poe2db.tw"]
+  "generatedAt": "2026-05-23T02:06:43.465Z",
+  "league": "Fate of the Vaal",
+  "crafts": [
+    {
+      "id": "shard-regal-shard",
+      "name": "Regal Orb from shards",
+      "type": "arb",
+      "inputCost": 10,
+      "expectedValue": 0.3564,
+      "ev": -9.6436,
+      "evPct": -96.44,
+      "confidence": "high",
+      "detail": "buy 10 Regal Shard, combine → sell 1 Regal Orb"
+    },
+    {
+      "id": "shard-transmutation-shard",
+      "name": "Orb of Transmutation from shards",
+      "type": "arb",
+      "inputCost": 14.8699,
+      "expectedValue": 0.4389,
+      "ev": -14.431,
+      "evPct": -97.05,
+      "confidence": "high",
+      "detail": "buy 10 Transmutation Shard, combine → sell 1 Orb of Transmutation"
+    },
+    {
+      "id": "shard-chance-shard",
+      "name": "Orb of Chance from shards",
+      "type": "arb",
+      "inputCost": 50,
+      "expectedValue": 5.7303,
+      "ev": -44.2697,
+      "evPct": -88.54,
+      "confidence": "high",
+      "detail": "buy 10 Chance Shard, combine → sell 1 Orb of Chance"
+    },
+    {
+      "id": "shard-artificers-shard",
+      "name": "Artificer's Orb from shards",
+      "type": "arb",
+      "inputCost": 173.281,
+      "expectedValue": 5.3017,
+      "ev": -167.9794,
+      "evPct": -96.94,
+      "confidence": "high",
+      "detail": "buy 10 Artificer's Shard, combine → sell 1 Artificer's Orb"
+    }
+  ],
+  "note": "Exact shard↔orb arbitrage (10:1) from live poe2scout prices. Essence/omen EV crafts arrive on fuller skill runs as PoE2 finished-item data thickens. Mechanics: Path of Crafting (MIT) + poe2db.tw.",
+  "sources": [
+    "poe2scout.com",
+    "Path of Crafting (MIT)",
+    "poe2db.tw"
+  ]
 }
