@@ -81,34 +81,6 @@ function stdev(xs: number[]): number {
 	return Math.sqrt(v);
 }
 
-function pearson(a: Map<string, number>, b: Map<string, number>): number {
-	const xs: number[] = [];
-	const ys: number[] = [];
-	for (const [t, va] of a) {
-		const vb = b.get(t);
-		if (vb !== undefined) {
-			xs.push(va);
-			ys.push(vb);
-		}
-	}
-	const n = xs.length;
-	if (n < 3) return 0;
-	const mx = xs.reduce((s, v) => s + v, 0) / n;
-	const my = ys.reduce((s, v) => s + v, 0) / n;
-	let num = 0;
-	let dx = 0;
-	let dy = 0;
-	for (let i = 0; i < n; i++) {
-		const ax = xs[i] - mx;
-		const by = ys[i] - my;
-		num += ax * by;
-		dx += ax * ax;
-		dy += by * by;
-	}
-	const den = Math.sqrt(dx * dy);
-	return den ? num / den : 0;
-}
-
 export function getMarketAnalytics(market: Market): MarketAnalytics {
 	const cur = market.currencies.filter((c) => c.series.length >= 5);
 
@@ -149,14 +121,25 @@ export function getMarketAnalytics(market: Market): MarketAnalytics {
 		price: c.price
 	}));
 
-	// correlation matrix — top 12 by volume, pairwise Pearson on daily returns
-	const top = liquid.slice(0, 12);
-	const rets = top.map((c) => dailyReturns(c.series));
-	const matrix = top.map((_, i) => top.map((__, j) => round(i === j ? 1 : pearson(rets[i], rets[j]))));
-	const correlations = {
-		ids: top.map((c) => ({ apiId: c.apiId, name: c.name })),
-		matrix
-	};
+	// relative performance — rebased % (last 30 days) for the top-liquid currencies;
+	// co-moving lines track, the spread shows leaders vs laggards.
+	const performance = liquid
+		.slice(0, 16)
+		.map((c) => {
+			const win = c.series.filter((p) => p.p > 0).slice(-30);
+			const base = win.length ? win[0].p : 0;
+			return {
+				apiId: c.apiId,
+				name: c.name,
+				series: base
+					? win.map((p) => ({
+							t: Math.floor(new Date(`${p.t}T00:00:00Z`).getTime() / 1000),
+							pct: round((p.p / base - 1) * 100)
+						}))
+					: []
+			};
+		})
+		.filter((l) => l.series.length >= 2);
 
-	return { league: market.league, asOf: market.asOf, breadth, volatility, liquidity, movers, correlations };
+	return { league: market.league, asOf: market.asOf, breadth, volatility, liquidity, movers, performance };
 }

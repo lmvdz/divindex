@@ -160,10 +160,37 @@
 
 	const pct = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(1)}%`;
 	const cls = (x: number) => (x > 0 ? 'pos' : x < 0 ? 'neg' : '');
-	function corrColor(r: number): string {
-		const a = Math.min(1, Math.abs(r));
-		return r >= 0 ? `rgba(102,207,138,${a * 0.55})` : `rgba(229,113,112,${a * 0.55})`;
+	// relative-performance (spaghetti) chart
+	const PERF_COLORS = ['#e0b465', '#56b6c2', '#d97aa6', '#66cf8a', '#e57170', '#8aa9c9', '#b08aff', '#d98fe0', '#f3d84a', '#5fd0a8', '#ef9f6a', '#7aa6ff', '#c8cdda', '#9fdfe8', '#f0b3d0', '#a0d995'];
+	const PERF_W = 640;
+	const PERF_H = 260;
+	const perfLines = $derived(
+		(data.market?.performance ?? []).map((l, i) => ({ ...l, color: PERF_COLORS[i % PERF_COLORS.length] }))
+	);
+	const perfScale = $derived.by(() => {
+		const pts = perfLines.flatMap((l) => l.series);
+		if (!pts.length) return null;
+		const pc = pts.map((p) => p.pct);
+		const ts = pts.map((p) => p.t);
+		return { minP: Math.min(...pc, 0), maxP: Math.max(...pc, 0), minT: Math.min(...ts), maxT: Math.max(...ts) };
+	});
+	const perfLegend = $derived(
+		[...perfLines]
+			.map((l) => ({ ...l, final: l.series.length ? l.series[l.series.length - 1].pct : 0 }))
+			.sort((a, b) => b.final - a.final)
+	);
+	function perfPath(series: { t: number; pct: number }[]): string {
+		const s = perfScale;
+		if (!s) return '';
+		const pspan = s.maxP - s.minP || 1;
+		const tspan = s.maxT - s.minT || 1;
+		return series
+			.map((p, i) => `${i ? 'L' : 'M'}${(((p.t - s.minT) / tspan) * PERF_W).toFixed(1)} ${(PERF_H - ((p.pct - s.minP) / pspan) * PERF_H).toFixed(1)}`)
+			.join(' ');
 	}
+	const perfZeroY = $derived(
+		perfScale ? PERF_H - ((0 - perfScale.minP) / ((perfScale.maxP - perfScale.minP) || 1)) * PERF_H : 0
+	);
 	const hzLabel = (h: string) => (h === 'hour' ? '1H' : h === 'day' ? '1D' : '1W');
 	function equitySpark(eq: { t: number; cum: number }[]): string {
 		if (eq.length < 2) return '';
@@ -363,27 +390,21 @@
 				</div>
 
 				<section class="an-card wide">
-					<h3>Correlation matrix — top 12 by volume (daily returns)</h3>
-					<div class="corr-wrap">
-						<table class="corr">
-							<thead>
-								<tr>
-									<th></th>
-									{#each market.correlations.ids as c, i (c.apiId)}<th title={c.name}>{i + 1}</th>{/each}
-								</tr>
-							</thead>
-							<tbody>
-								{#each market.correlations.matrix as row, i (i)}
-									<tr>
-										<th class="rowlab" title={market.correlations.ids[i].name}>{i + 1} {market.correlations.ids[i].name}</th>
-										{#each row as r, j (j)}
-											<td style="background:{corrColor(r)}" title={r.toFixed(2)}>{r.toFixed(2)}</td>
-										{/each}
-									</tr>
-								{/each}
-							</tbody>
-						</table>
+					<h3>Relative performance <span class="muted">— top 16 by volume, rebased to 0% (last ~30d)</span></h3>
+					<div class="perf-wrap">
+						<svg class="perf-chart" viewBox="0 0 {PERF_W} {PERF_H}" preserveAspectRatio="none" aria-label="Relative performance">
+							<line class="perf-zero" x1="0" y1={perfZeroY} x2={PERF_W} y2={perfZeroY} />
+							{#each perfLines as l (l.apiId)}
+								<path d={perfPath(l.series)} style="stroke:{l.color}" />
+							{/each}
+						</svg>
 					</div>
+					<ul class="perf-legend">
+						{#each perfLegend as l (l.apiId)}
+							<li><span class="perf-dot" style="background:{l.color}"></span><a href="/?c={l.apiId}">{l.name}</a><span class="mono {cls(l.final)}">{pct(l.final)}</span></li>
+						{/each}
+					</ul>
+					<p class="muted">Lines that move together are correlated; the spread is who's outperforming. Click a name to open it.</p>
 				</section>
 			{:else if tab === 'smart'}
 				<section class="an-card wide">
