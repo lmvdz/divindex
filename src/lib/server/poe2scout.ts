@@ -31,11 +31,22 @@ const CURRENCY_CATEGORIES = [
 const UA = 'Divindex/0.1 (+https://divindex.com; contact: hello@divindex.com)';
 const BASE = 'https://poe2scout.com/api';
 const REALM = 'poe2';
-const TTL = 10 * 60 * 1000;
+// poe2scout publishes hourly, so cache until just after the next hourly update
+// (HH:05 UTC) — at most one upstream pull per resource per hour, instead of
+// re-pulling on a flat 10-min timer regardless of whether the data changed.
+function nextRefresh(now = Date.now()): number {
+	const d = new Date(now);
+	let t = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), 5, 0, 0);
+	if (now >= t) t += 3600_000;
+	return t;
+}
+function ttlSeconds(now = Date.now()): number {
+	return Math.max(60, Math.floor((nextRefresh(now) - now) / 1000));
+}
 
-let leagueCache: { value: string; at: number } | null = null;
-const marketCache = new Map<string, { data: Market; at: number }>();
-const rawCache = new Map<string, { pts: RawPoint[]; at: number }>();
+let leagueCache: { value: string; expires: number } | null = null;
+const marketCache = new Map<string, { data: Market; expires: number }>();
+const rawCache = new Map<string, { pts: RawPoint[]; expires: number }>();
 
 interface RawPoint {
 	ms: number;
@@ -49,7 +60,7 @@ const round = (n: number) => Math.round(n * 1e4) / 1e4;
 // shared across all Worker isolates), layered under the in-memory L1 caches.
 // We key by a synthetic same-zone URL so caches.default accepts the external
 // response. Falls back to a plain fetch in dev (where `caches` is undefined).
-async function getJson(url: string, ttlSec = 600): Promise<unknown> {
+async function getJson(url: string, ttlSec = ttlSeconds()): Promise<unknown> {
 	const cache = (globalThis as unknown as { caches?: { default: Cache } }).caches?.default;
 	const key = cache ? new Request(`https://divindex.com/__poe2cache?u=${encodeURIComponent(url)}`) : null;
 	if (cache && key) {
@@ -81,7 +92,7 @@ async function getJson(url: string, ttlSec = 600): Promise<unknown> {
 }
 
 export async function getCurrentLeague(): Promise<string> {
-	if (leagueCache && Date.now() - leagueCache.at < TTL) return leagueCache.value;
+	if (leagueCache && Date.now() < leagueCache.expires) return leagueCache.value;
 	try {
 		const leagues = (await getJson(`${BASE}/${REALM}/Leagues`)) as Array<{
 			Value: string;
@@ -89,7 +100,7 @@ export async function getCurrentLeague(): Promise<string> {
 		}>;
 		const current = leagues.find((l) => l.IsCurrent) ?? leagues[0];
 		const value = current?.Value ?? seed.league;
-		leagueCache = { value, at: Date.now() };
+		leagueCache = { value, expires: nextRefresh() };
 		return value;
 	} catch {
 		return leagueCache?.value ?? seed.league;
@@ -190,7 +201,7 @@ async function getEconomy(enc: string): Promise<Economy | null> {
 export async function getMarket(league?: string): Promise<Market> {
 	const lg = league ?? (await getCurrentLeague());
 	const cached = marketCache.get(lg);
-	if (cached && Date.now() - cached.at < TTL) return cached.data;
+	if (cached && Date.now() < cached.expires) return cached.data;
 
 	try {
 		const enc = encodeURIComponent(lg);
@@ -228,7 +239,7 @@ export async function getMarket(league?: string): Promise<Market> {
 			note: 'Live Path of Exile 2 Currency Exchange data via poe2scout.',
 			source: 'poe2scout.com'
 		};
-		marketCache.set(lg, { data, at: Date.now() });
+		marketCache.set(lg, { data, expires: nextRefresh() });
 		return data;
 	} catch {
 		return cached?.data ?? fallbackMarket();
@@ -302,7 +313,7 @@ function bucketStart(ms: number, tf: Timeframe): number {
 async function getRaw(itemId: number, lg: string): Promise<RawPoint[]> {
 	const key = `${lg}:${itemId}`;
 	const cached = rawCache.get(key);
-	if (cached && Date.now() - cached.at < TTL) return cached.pts;
+	if (cached && Date.now() < cached.expires) return cached.pts;
 
 	const enc = encodeURIComponent(lg);
 	const res = (await getJson(
@@ -315,7 +326,7 @@ async function getRaw(itemId: number, lg: string): Promise<RawPoint[]> {
 		.filter((p) => Number.isFinite(p.ms))
 		.sort((a, b) => a.ms - b.ms);
 
-	if (pts.length) rawCache.set(key, { pts, at: Date.now() });
+	if (pts.length) rawCache.set(key, { pts, expires: nextRefresh() });
 	return pts;
 }
 
