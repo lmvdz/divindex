@@ -16,12 +16,21 @@
 		type Quote
 	} from '$lib/convert';
 	import { TF_TO_HORIZON } from '$lib/horizons';
+	import { quoteStore } from '$lib/quote.svelte';
 	import type { Calibration, Forecast, Horizon, Market, Profile } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	let market = $state<Market>(untrack(() => data.market));
-	let quote = $state<Quote>(untrack(() => (page.url.searchParams.get('q') === 'divine' ? 'divine' : 'exalted')));
+	let quote = $state<Quote>(
+		untrack(() => {
+			const u = page.url.searchParams.get('q');
+			return u === 'divine' || u === 'exalted' ? u : quoteStore.value;
+		})
+	);
+	$effect(() => {
+		quoteStore.set(quote);
+	});
 
 	function pickDefault(m: Market): number {
 		const q = page.url.searchParams.get('c');

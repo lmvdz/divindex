@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
+	import { quoteStore } from '$lib/quote.svelte';
 	import { fmt, compact, signStr, signClass, ticker } from '$lib/format';
 	import {
 		convertMarket,
@@ -18,7 +21,15 @@
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
-	let quote = $state<Quote>('exalted');
+	let quote = $state<Quote>(
+		untrack(() => {
+			const u = page.url.searchParams.get('q');
+			return u === 'divine' || u === 'exalted' ? u : quoteStore.value;
+		})
+	);
+	$effect(() => {
+		quoteStore.set(quote);
+	});
 	const market = $derived(convertMarket(data.market, quote));
 	const QUOTES: Quote[] = ['exalted', 'divine'];
 
