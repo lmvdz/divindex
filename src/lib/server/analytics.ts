@@ -1,3 +1,4 @@
+import { getDailySeries } from './poe2scout';
 import type { Arbitrage, FairValue, FairValueRow, Market, MarketAnalytics, PricePoint, ShardArb } from '$lib/types';
 
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
@@ -81,7 +82,7 @@ function stdev(xs: number[]): number {
 	return Math.sqrt(v);
 }
 
-export function getMarketAnalytics(market: Market): MarketAnalytics {
+export async function getMarketAnalytics(market: Market): Promise<MarketAnalytics> {
 	const cur = market.currencies.filter((c) => c.series.length >= 5);
 
 	// breadth — 24h advance/decline
@@ -121,12 +122,15 @@ export function getMarketAnalytics(market: Market): MarketAnalytics {
 		price: c.price
 	}));
 
-	// relative performance — rebased % (last 30 days) for the top-liquid currencies;
-	// co-moving lines track, the spread shows leaders vs laggards.
-	const performance = liquid
-		.slice(0, 16)
-		.map((c) => {
-			const win = c.series.filter((p) => p.p > 0).slice(-30);
+	// relative performance — rebased % over the FULL league history (daily) for the
+	// top-liquid currencies. The market's per-currency series is only a ~7-day window,
+	// so pull the deep History feed and rebase each line to its first point; co-moving
+	// lines track, the spread shows leaders vs laggards.
+	const top = liquid.slice(0, 16);
+	const deep = await Promise.all(top.map((c) => getDailySeries(c.id, market.league)));
+	const performance = top
+		.map((c, i) => {
+			const win = deep[i].filter((p) => p.p > 0);
 			const base = win.length ? win[0].p : 0;
 			return {
 				apiId: c.apiId,

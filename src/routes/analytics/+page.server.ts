@@ -26,16 +26,17 @@ export const load: PageServerLoad = async ({ locals, platform, cookies }) => {
 	}
 
 	const market = await getMarket();
-	const [smart, me, alerts, port] = await Promise.all([
+	const [smart, me, alerts, port, marketAnalytics] = await Promise.all([
 		getSmartMoney(platform, market),
 		getMyPerformance(platform, market, pid),
 		listAlerts(platform, pid ?? ''),
-		getPortfolio(platform, market, pid ?? '')
+		getPortfolio(platform, market, pid ?? ''),
+		getMarketAnalytics(market)
 	]);
 	return {
 		premium: true,
 		uid: pid ?? null,
-		market: getMarketAnalytics(market),
+		market: marketAnalytics,
 		smart,
 		me,
 		alerts,

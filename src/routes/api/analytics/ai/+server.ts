@@ -12,6 +12,6 @@ export const GET: RequestHandler = async ({ locals, platform, cookies }) => {
 	if (!(await isPremium(platform, pid))) return json({ error: 'Premium required' }, { status: 403 });
 	const market = await getMarket();
 	const [signal] = await Promise.all([getSmartMoney(platform, market)]);
-	const briefing = await getAiBriefing(platform, getMarketAnalytics(market), signal, getFairValue(market));
+	const briefing = await getAiBriefing(platform, await getMarketAnalytics(market), signal, getFairValue(market));
 	return json(briefing);
 };

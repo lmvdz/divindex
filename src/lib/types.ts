@@ -148,7 +148,7 @@ export interface MarketAnalytics {
 	volatility: { apiId: string; name: string; vol: number; price: number; change1dPct: number }[];
 	liquidity: { apiId: string; name: string; volume: number; price: number }[];
 	movers: { apiId: string; name: string; changePct: number; price: number }[];
-	// rebased % performance (last ~30d) for the top-liquid currencies — a readable
+	// rebased % performance (full history) for the top-liquid currencies — a readable
 	// alternative to a correlation matrix (co-moving lines track; spread = leaders/laggards)
 	performance: { apiId: string; name: string; series: { t: number; pct: number }[] }[];
 }

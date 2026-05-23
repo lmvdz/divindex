@@ -365,9 +365,9 @@
 				</div>
 
 				<section class="an-card wide">
-					<h3>Relative performance <span class="muted">— top 16 by volume, log-scaled % (last ~30d)</span></h3>
+					<h3>Relative performance <span class="muted">— top 16 by volume, log-scaled %, full history</span></h3>
 					<PerfChart lines={perfLines} />
-					<p class="muted">Log-scaled % rebased to each currency's 30-day start, so big and small movers share one readable axis. Hover for that day's values; click a name to open it.</p>
+					<p class="muted">Log-scaled % rebased to each currency's earliest point, so big and small movers share one readable axis. Hover for that day's values; click a name to open it.</p>
 				</section>
 			{:else if tab === 'smart'}
 				<section class="an-card wide">

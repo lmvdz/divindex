@@ -386,3 +386,23 @@ export async function getHistory(
 		return { id: itemId, tf, candles: [] };
 	}
 }
+
+// Daily close points across the FULL league history (from the deep History feed,
+// not the ~7-day ByCategory window) — for multi-series charts that want max range.
+export async function getDailySeries(itemId: number, league?: string): Promise<PricePoint[]> {
+	const lg = league ?? (await getCurrentLeague());
+	try {
+		const pts = await getRaw(itemId, lg);
+		const byDay = new Map<string, { ms: number; p: number; q: number }>();
+		for (const p of pts) {
+			const day = new Date(p.ms).toISOString().slice(0, 10);
+			const cur = byDay.get(day);
+			if (!cur || p.ms >= cur.ms) byDay.set(day, { ms: p.ms, p: p.price, q: p.q });
+		}
+		return [...byDay.entries()]
+			.map(([t, v]) => ({ t, p: round(v.p), q: v.q }))
+			.sort((a, b) => a.t.localeCompare(b.t));
+	} catch {
+		return [];
+	}
+}
