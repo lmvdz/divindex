@@ -370,7 +370,10 @@ function fallbackMarket(): Market {
 }
 
 // Pull the full league history (poe2scout returns min(LogCount, available)).
-const HISTORY_LOGCOUNT = 5000;
+// Headroom for the longest-lived leagues: Standard goes back to PoE2 EA launch
+// (2024-12-07) — ~12.7k hourly points and growing. 5000 was clipping it to the
+// last ~208 days; over-asking is free (the API just returns what it has).
+const HISTORY_LOGCOUNT = 50000;
 
 function bucketStart(ms: number, tf: Timeframe): number {
 	const sec = Math.floor(ms / 1000);
