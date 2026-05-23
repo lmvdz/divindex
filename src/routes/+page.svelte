@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import { page } from '$app/state';
+	import { replaceState } from '$app/navigation';
 	import Toolbar from '$lib/components/Toolbar.svelte';
 	import MarketList from '$lib/components/MarketList.svelte';
 	import PriceChart from '$lib/components/PriceChart.svelte';
@@ -20,7 +21,7 @@
 
 	let { data }: { data: PageData } = $props();
 	let market = $state<Market>(untrack(() => data.market));
-	let quote = $state<Quote>('exalted');
+	let quote = $state<Quote>(untrack(() => (page.url.searchParams.get('q') === 'divine' ? 'divine' : 'exalted')));
 
 	function pickDefault(m: Market): number {
 		const q = page.url.searchParams.get('c');
@@ -43,6 +44,18 @@
 	const eff = $derived(selectedRaw ? effectiveQuote(selectedRaw.apiId, quote) : 'exalted');
 	const fxRate = $derived(eff === 'exalted' ? 1 : divineRate(market));
 	const unit = $derived(QUOTE_LABEL[eff]);
+
+	// keep the URL in sync (?c=<currency>&q=<quote>) so a reload or shared link
+	// restores the exact pair. replaceState avoids polluting back-button history.
+	let lastSync = '';
+	$effect(() => {
+		const apiId = selectedRaw?.apiId;
+		if (!apiId) return;
+		const next = `?c=${encodeURIComponent(apiId)}&q=${quote}`;
+		if (next === lastSync) return;
+		lastSync = next;
+		replaceState(next, {});
+	});
 
 	// ---- auth (from +layout.server.ts) ----
 	const session = $derived(page.data.session as { user?: { name?: string | null } } | null);

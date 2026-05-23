@@ -65,7 +65,7 @@
 
 	function open(c: Currency) {
 		hideTip();
-		goto(`/?c=${c.apiId}`);
+		goto(`/?c=${c.apiId}&q=${quote}`);
 	}
 	function toggle(id: number) {
 		expandedId = expandedId === id ? null : id;
