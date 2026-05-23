@@ -47,13 +47,19 @@
 
 	// keep the URL in sync (?c=<currency>&q=<quote>) so a reload or shared link
 	// restores the exact pair. replaceState avoids polluting back-button history.
+	// Skip the very first run: on mount the URL already reflects the loaded state
+	// and SvelteKit's router isn't initialized yet (replaceState would throw).
 	let lastSync = '';
+	let synced = false;
 	$effect(() => {
 		const apiId = selectedRaw?.apiId;
 		if (!apiId) return;
 		const next = `?c=${encodeURIComponent(apiId)}&q=${quote}`;
 		if (next === lastSync) return;
+		const first = !synced;
+		synced = true;
 		lastSync = next;
+		if (first) return;
 		replaceState(next, {});
 	});
 
