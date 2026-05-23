@@ -14,6 +14,7 @@
 		forecast,
 		dispPrice,
 		dispChange,
+		premium = false,
 		ontimeframe
 	}: {
 		currency: Currency;
@@ -23,6 +24,7 @@
 		forecast: Forecast | null;
 		dispPrice?: number; // canonical (converted) headline price — matches sidebar/stats
 		dispChange?: number; // canonical 24h change
+		premium?: boolean; // unlocks Pro indicators (VWAP)
 		ontimeframe?: (tf: Timeframe) => void;
 	} = $props();
 
@@ -41,6 +43,7 @@
 	let timeframe = $state<Timeframe>('1d');
 	let emaPeriod = $state<number | null>(null);
 	let bb = $state(false);
+	let vwap = $state(false);
 	const intraday = $derived(timeframe === '1h' || timeframe === '4h');
 	const kindFor = (tf: Timeframe): 'line' | 'candle' => (tf === '1h' ? 'line' : 'candle');
 	const quoteLabel = $derived(QUOTE_LABEL[effectiveQuote(currency.apiId, quote)]);
@@ -70,6 +73,7 @@
 	let seriesKind = $state<'line' | 'candle'>('candle');
 	let fcLines: LineApi[] = [];
 	let bbSeries: LineApi[] = [];
+	let vwapSeries: LineApi | undefined;
 
 	function fmtTime(sec: number): string {
 		const iso = new Date(sec * 1000).toISOString();
@@ -226,6 +230,41 @@
 		band(data.map((d) => ({ time: d.time, value: d.lower })), 1, true, 0.55);
 	}
 
+	// Anchored VWAP — cumulative (typical price × volume) / cumulative volume.
+	function vwapData(cs: Candle[]) {
+		const out: { time: number; value: number }[] = [];
+		let pv = 0;
+		let vol = 0;
+		for (const c of cs) {
+			const tp = (c.high + c.low + c.close) / 3;
+			pv += tp * (c.volume || 0);
+			vol += c.volume || 0;
+			out.push({ time: c.time, value: vol ? pv / vol : tp });
+		}
+		return out;
+	}
+
+	function drawVWAP() {
+		if (!ready || !chart || !lcRef) return;
+		if (vwapSeries) {
+			try {
+				chart.removeSeries(vwapSeries);
+			} catch {
+				/* gone */
+			}
+			vwapSeries = undefined;
+		}
+		if (!vwap || !premium || candles.length < 2) return;
+		vwapSeries = chart.addSeries(lcRef.LineSeries, {
+			color: '#d98fe0',
+			lineWidth: 2,
+			priceLineVisible: false,
+			lastValueVisible: false,
+			crosshairMarkerVisible: false
+		});
+		vwapSeries.setData(vwapData(candles) as never);
+	}
+
 	function drawVolume() {
 		if (!ready || !volSeries) return;
 		const data = candles.map((c, i) => {
@@ -349,6 +388,7 @@
 		drawEMA();
 		drawForecast();
 		drawBB();
+		drawVWAP();
 	}
 
 	onMount(() => {
@@ -400,6 +440,7 @@
 				drawEMA();
 				drawForecast();
 				drawBB();
+				drawVWAP();
 			} catch {
 				failed = true;
 			}
@@ -429,6 +470,11 @@
 		bb;
 		drawBB();
 	});
+	$effect(() => {
+		vwap;
+		premium;
+		drawVWAP();
+	});
 </script>
 
 <div class="chart-pane">
@@ -456,6 +502,9 @@
 		</div>
 		<div class="tf-tabs" role="group" aria-label="Indicators">
 			<button class:active={bb} onclick={() => (bb = !bb)} title="Bollinger Bands (20, 2σ)">BB</button>
+			{#if premium}
+				<button class:active={vwap} onclick={() => (vwap = !vwap)} title="VWAP (anchored) — Pro">VWAP</button>
+			{/if}
 		</div>
 		<div class="tf-tabs" role="group" aria-label="Timeframe">
 			{#each TFS as t (t.id)}

@@ -69,6 +69,7 @@
 	const userName = $derived(session?.user?.name ?? null);
 	const providers = $derived((page.data.providers as string[] | undefined) ?? []);
 	const authConfigured = $derived((page.data.authConfigured as boolean | undefined) ?? false);
+	const premium = $derived((page.data.premium as boolean | undefined) ?? false);
 
 	let busy = $state(false);
 	async function refresh() {
@@ -187,6 +188,7 @@
 					{forecast}
 					dispPrice={selectedView.price}
 					dispChange={selectedView.change1dPct}
+					{premium}
 					ontimeframe={(tf) => {
 						const h = TF_TO_HORIZON[tf];
 						if (h) activeHorizon = h;
