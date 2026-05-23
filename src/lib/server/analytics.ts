@@ -1,6 +1,37 @@
-import type { Arbitrage, Market, MarketAnalytics, PricePoint, ShardArb } from '$lib/types';
+import type { Arbitrage, FairValue, FairValueRow, Market, MarketAnalytics, PricePoint, ShardArb } from '$lib/types';
 
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
+
+// Divindex Fair Value: a liquidity-weighted recent average + dispersion band, so
+// the noisy last tick on thin markets doesn't masquerade as the price. Deviation
+// = how far the current tick sits from fair (mispricing signal); confidence
+// blends low dispersion with traded volume.
+export function getFairValue(market: Market): FairValue {
+	const rows: FairValueRow[] = [];
+	for (const c of market.currencies) {
+		const recent = c.series.slice(-10);
+		if (recent.length < 3) continue;
+		const prices = recent.map((p) => p.p);
+		const totQ = recent.reduce((s, p) => s + (p.q ?? 0), 0);
+		const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+		const fair = totQ > 0 ? recent.reduce((s, p) => s + p.p * (p.q ?? 0), 0) / totQ : mean;
+		const sd = Math.sqrt(prices.reduce((s, p) => s + (p - mean) ** 2, 0) / prices.length);
+		const disp = fair > 0 ? Math.min(1, sd / fair) : 1;
+		const liq = Math.min(1, (c.volume || 0) / 100);
+		rows.push({
+			apiId: c.apiId,
+			name: c.name,
+			price: round(c.price),
+			fair: round(fair),
+			low: round(fair * (1 - disp)),
+			high: round(fair * (1 + disp)),
+			deviationPct: fair > 0 ? round(((c.price - fair) / fair) * 100) : 0,
+			confidence: round(Math.max(0, Math.min(1, (1 - disp) * (0.4 + 0.6 * liq))))
+		});
+	}
+	rows.sort((a, b) => Math.abs(b.deviationPct) - Math.abs(a.deviationPct));
+	return { updatedAt: Date.now(), rows };
+}
 
 // Shard arbitrage: 10 shards = 1 orb in PoE2. Detect shard↔orb pairs by name
 // root and price the edge (orb worth more than 10 of its shards ⇒ combine & sell).

@@ -149,6 +149,22 @@ export interface MarketAnalytics {
 	correlations: { ids: { apiId: string; name: string }[]; matrix: number[][] };
 }
 
+export interface FairValueRow {
+	apiId: string;
+	name: string;
+	price: number; // current (last tick)
+	fair: number; // liquidity-weighted model value
+	low: number; // band
+	high: number;
+	deviationPct: number; // (price − fair) / fair × 100
+	confidence: number; // 0..1 (dispersion × liquidity)
+}
+
+export interface FairValue {
+	updatedAt: number;
+	rows: FairValueRow[];
+}
+
 export interface ShardArb {
 	shardName: string;
 	orbName: string;

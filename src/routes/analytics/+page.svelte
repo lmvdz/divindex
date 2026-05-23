@@ -10,11 +10,12 @@
 	let { data }: { data: PageData } = $props();
 	const signedIn = $derived(!!(page.data.session as { user?: unknown } | null)?.user);
 
-	type Tab = 'market' | 'smart' | 'arb' | 'me' | 'alerts';
+	type Tab = 'market' | 'smart' | 'fair' | 'arb' | 'me' | 'alerts';
 	let tab = $state<Tab>('market');
 	const TABS: { id: Tab; label: string }[] = [
 		{ id: 'market', label: 'Market intelligence' },
 		{ id: 'smart', label: 'Signal' },
+		{ id: 'fair', label: 'Fair value' },
 		{ id: 'arb', label: 'Arbitrage' },
 		{ id: 'me', label: 'My performance' },
 		{ id: 'alerts', label: 'Alerts' }
@@ -106,7 +107,7 @@
 	</header>
 
 	<main class="scr-body" id="main">
-		{#if !data.premium || !data.market || !data.smart || !data.me || !data.markets || !data.arb}
+		{#if !data.premium || !data.market || !data.smart || !data.me || !data.markets || !data.arb || !data.fair}
 			<section class="upsell">
 				<span class="eyebrow">Divindex Pro</span>
 				<h1>Analytics suite</h1>
@@ -131,6 +132,7 @@
 			{@const me = data.me}
 			{@const markets = data.markets}
 			{@const arb = data.arb}
+			{@const fair = data.fair}
 			<div class="scr-meta">
 				<span class="eyebrow">Analytics <span class="pro-pill">PRO</span></span>
 				<span class="muted">{market.league} · live market + crowd intelligence</span>
@@ -262,6 +264,31 @@
 						</ul>
 					</section>
 				{/if}
+			{:else if tab === 'fair'}
+				<section class="an-card wide">
+					<h3>Divindex Fair Value <span class="muted">— biggest mispricings vs liquidity-weighted fair</span></h3>
+					{#if fair.rows.length}
+						<div class="scr-table-wrap">
+							<table class="scr-table">
+								<thead><tr><th>Market</th><th class="num">Price</th><th class="num">Fair</th><th class="num">Deviation</th><th class="num hide-sm">Confidence</th></tr></thead>
+								<tbody>
+									{#each fair.rows.slice(0, 40) as r (r.apiId)}
+										<tr>
+											<td><a href="/?c={r.apiId}">{r.name}</a></td>
+											<td class="num mono">{fmt(r.price)}</td>
+											<td class="num mono">{fmt(r.fair)}</td>
+											<td class="num mono {cls(r.deviationPct)}">{pct(r.deviationPct)}</td>
+											<td class="num mono hide-sm">{Math.round(r.confidence * 100)}%</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+						<p class="muted">Deviation = how far the last tick sits from the liquidity-weighted fair value (positive = trading rich, negative = cheap). Confidence blends low dispersion with traded volume.</p>
+					{:else}
+						<p class="muted">Not enough history yet.</p>
+					{/if}
+				</section>
 			{:else if tab === 'arb'}
 				<section class="an-card wide">
 					<h3>Shard arbitrage <span class="muted">— {arb.shardsPerOrb} shards = 1 orb</span></h3>

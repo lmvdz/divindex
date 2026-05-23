@@ -1,5 +1,5 @@
 import { getMarket } from '$lib/server/poe2scout';
-import { getArbitrage, getMarketAnalytics } from '$lib/server/analytics';
+import { getArbitrage, getFairValue, getMarketAnalytics } from '$lib/server/analytics';
 import { getMyPerformance, getSmartMoney } from '$lib/server/forecast';
 import { listAlerts } from '$lib/server/alerts';
 import { isPremium } from '$lib/server/premium';
@@ -18,7 +18,8 @@ export const load: PageServerLoad = async ({ locals, platform, cookies }) => {
 			me: null,
 			alerts: null,
 			markets: null,
-			arb: null
+			arb: null,
+			fair: null
 		};
 	}
 
@@ -36,6 +37,7 @@ export const load: PageServerLoad = async ({ locals, platform, cookies }) => {
 		me,
 		alerts,
 		markets: market.currencies.map((c) => ({ apiId: c.apiId, name: c.name })),
-		arb: getArbitrage(market)
+		arb: getArbitrage(market),
+		fair: getFairValue(market)
 	};
 };
