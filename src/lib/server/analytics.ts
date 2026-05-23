@@ -1,4 +1,4 @@
-import { getDailySeries } from './poe2scout';
+import { getDailySeries, mapLimit } from './poe2scout';
 import type { Arbitrage, FairValue, FairValueRow, Market, MarketAnalytics, PricePoint, ShardArb } from '$lib/types';
 
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
@@ -127,7 +127,7 @@ export async function getMarketAnalytics(market: Market): Promise<MarketAnalytic
 	// so pull the deep History feed and rebase each line to its first point; co-moving
 	// lines track, the spread shows leaders vs laggards.
 	const top = liquid.slice(0, 16);
-	const deep = await Promise.all(top.map((c) => getDailySeries(c.id, market.league)));
+	const deep = await mapLimit(top, 3, (c) => getDailySeries(c.id, market.league));
 	const performance = top
 		.map((c, i) => {
 			const win = deep[i].filter((p) => p.p > 0);

@@ -56,6 +56,26 @@ interface RawPoint {
 
 const round = (n: number) => Math.round(n * 1e4) / 1e4;
 
+// Run async tasks with bounded concurrency. poe2scout rate-limits bursts from
+// Cloudflare's shared egress IPs, so we fan out a few at a time instead of all
+// at once — we only fetch once per hour (cached), so a few serial waves is fine.
+export async function mapLimit<T, R>(
+	items: readonly T[],
+	limit: number,
+	fn: (item: T, index: number) => Promise<R>
+): Promise<R[]> {
+	const out = new Array<R>(items.length);
+	let next = 0;
+	const worker = async () => {
+		while (next < items.length) {
+			const i = next++;
+			out[i] = await fn(items[i], i);
+		}
+	};
+	await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+	return out;
+}
+
 // Persistent cross-isolate cache via the Cloudflare Cache API (colo-wide,
 // shared across all Worker isolates), layered under the in-memory L1 caches.
 // We key by a synthetic same-zone URL so caches.default accepts the external
@@ -67,18 +87,30 @@ async function getJson(url: string, ttlSec = ttlSeconds()): Promise<unknown> {
 		const hit = await cache.match(key);
 		if (hit) return hit.json();
 	}
-	// retry transient upstream failures so a single hiccup doesn't drop a category
+	// retry transient upstream failures so a single hiccup (or a 429 from a burst)
+	// doesn't drop a category — back off harder on rate-limit, honoring Retry-After
 	let res: Response | undefined;
 	let lastErr: unknown;
-	for (let i = 0; i < 3; i++) {
+	const ATTEMPTS = 4;
+	for (let i = 0; i < ATTEMPTS; i++) {
 		try {
 			res = await fetch(url, { headers: { 'User-Agent': UA, accept: 'application/json' } });
 			if (res.ok) break;
 			lastErr = new Error(`poe2scout ${res.status} ${url}`);
+			if (res.status === 429) {
+				const ra = Number(res.headers.get('retry-after'));
+				if (Number.isFinite(ra) && ra > 0) {
+					await new Promise((r) => setTimeout(r, Math.min(ra * 1000, 5000)));
+					continue;
+				}
+			}
 		} catch (e) {
 			lastErr = e;
 		}
-		if (i < 2) await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+		if (i < ATTEMPTS - 1) {
+			const base = res?.status === 429 ? 800 : 250;
+			await new Promise((r) => setTimeout(r, base * (i + 1) + Math.random() * 200));
+		}
 	}
 	if (!res || !res.ok) throw lastErr ?? new Error(`poe2scout failed ${url}`);
 	if (cache && key) {
@@ -126,6 +158,8 @@ interface RawItem {
 		effect?: string[];
 	};
 	PriceLogs?: RawLog[];
+	CurrentPrice?: number;
+	CurrentQuantity?: number;
 }
 
 function buildSeries(logs: RawLog[] | undefined): PricePoint[] {
@@ -139,8 +173,16 @@ function buildSeries(logs: RawLog[] | undefined): PricePoint[] {
 }
 
 function toCurrency(it: RawItem, category: string): Currency | null {
-	const series = buildSeries(it.PriceLogs);
-	if (series.length === 0) return null;
+	let series = buildSeries(it.PriceLogs);
+	// Some items (Mirror, or whole categories right after the hourly publish) come
+	// back with all-null PriceLogs but a valid CurrentPrice — keep them with a
+	// single-point series rather than dropping the currency (and its category).
+	if (series.length === 0) {
+		if (typeof it.CurrentPrice !== 'number' || !(it.CurrentPrice > 0)) return null;
+		series = [
+			{ t: new Date().toISOString().slice(0, 10), p: round(it.CurrentPrice), q: it.CurrentQuantity ?? 0 }
+		];
+	}
 	const last = series[series.length - 1];
 	const first = series[0];
 	const prev = series.length > 1 ? series[series.length - 2] : first;
@@ -208,7 +250,7 @@ export async function getMarket(league?: string): Promise<Market> {
 	try {
 		const enc = encodeURIComponent(lg);
 		const [lists, economy] = await Promise.all([
-			Promise.all(CURRENCY_CATEGORIES.map((cat) => fetchCategory(enc, cat))),
+			mapLimit(CURRENCY_CATEGORIES, 4, (cat) => fetchCategory(enc, cat)),
 			getEconomy(enc)
 		]);
 
@@ -244,16 +286,18 @@ export async function getMarket(league?: string): Promise<Market> {
 			note: 'Live Path of Exile 2 Currency Exchange data via poe2scout.',
 			source: 'poe2scout.com'
 		};
-		// A category fetch can drop out transiently. Never let a partial pull (e.g.
-		// a missing "currency" category — Mirror, Divine, Exalted) clobber a complete
+		// A category fetch can drop out transiently. Treat the pull as incomplete if
+		// any category failed OR the staple "currency" category (Mirror, Divine,
+		// Exalted, Chaos) is missing. Never let an incomplete pull clobber a complete
 		// market for the full hour: keep serving the last good market when it covered
 		// more categories, and retry the dropped ones within ~90s instead of HH:10.
 		const prev = cached?.data;
-		if (failed > 0 && prev && prev.categories.length > categories.length) {
+		const incomplete = failed > 0 || !categories.includes('currency');
+		if (incomplete && prev && prev.categories.length > categories.length) {
 			marketCache.set(lg, { data: prev, expires: Date.now() + 90_000 });
 			return prev;
 		}
-		marketCache.set(lg, { data, expires: failed > 0 ? Date.now() + 90_000 : nextRefresh() });
+		marketCache.set(lg, { data, expires: incomplete ? Date.now() + 90_000 : nextRefresh() });
 		return data;
 	} catch {
 		return cached?.data ?? fallbackMarket();
