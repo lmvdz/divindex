@@ -56,8 +56,20 @@ async function getJson(url: string, ttlSec = 600): Promise<unknown> {
 		const hit = await cache.match(key);
 		if (hit) return hit.json();
 	}
-	const res = await fetch(url, { headers: { 'User-Agent': UA, accept: 'application/json' } });
-	if (!res.ok) throw new Error(`poe2scout ${res.status} ${url}`);
+	// retry transient upstream failures so a single hiccup doesn't drop a category
+	let res: Response | undefined;
+	let lastErr: unknown;
+	for (let i = 0; i < 3; i++) {
+		try {
+			res = await fetch(url, { headers: { 'User-Agent': UA, accept: 'application/json' } });
+			if (res.ok) break;
+			lastErr = new Error(`poe2scout ${res.status} ${url}`);
+		} catch (e) {
+			lastErr = e;
+		}
+		if (i < 2) await new Promise((r) => setTimeout(r, 250 * (i + 1)));
+	}
+	if (!res || !res.ok) throw lastErr ?? new Error(`poe2scout failed ${url}`);
 	if (cache && key) {
 		const store = new Response(res.clone().body, {
 			status: 200,
