@@ -17,6 +17,7 @@
 	} from '$lib/convert';
 	import { TF_TO_HORIZON } from '$lib/horizons';
 	import { quoteStore } from '$lib/quote.svelte';
+	import { handleOf } from '$lib/handle';
 	import type { Calibration, Forecast, Horizon, Market, Profile } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -115,6 +116,9 @@
 
 	// ---- player profile (rank, points, streak, badges) ----
 	let profile = $state<Profile | null>(null);
+	// link your name to your public profile — only once you have one (the /u/<handle>
+	// page 404s for players with no scored calls yet)
+	const profileHref = $derived(profile?.you ? `/u/${handleOf(profile.you.pid)}` : null);
 	async function loadProfile() {
 		try {
 			const res = await fetch('/api/profile');
@@ -177,6 +181,7 @@
 		{signedIn}
 		{userName}
 		{authConfigured}
+		{profileHref}
 	/>
 
 	<div class="term-body">

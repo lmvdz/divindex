@@ -12,7 +12,8 @@
 		busy,
 		signedIn,
 		userName,
-		authConfigured
+		authConfigured,
+		profileHref = null
 	}: {
 		league: string;
 		fetchedAt: number;
@@ -23,6 +24,7 @@
 		signedIn: boolean;
 		userName: string | null;
 		authConfigured: boolean;
+		profileHref?: string | null;
 	} = $props();
 
 	const QUOTES: Quote[] = ['exalted', 'divine'];
@@ -55,7 +57,11 @@
 		{busy ? 'Refreshing…' : 'Refresh'}
 	</button>
 	{#if signedIn}
-		<span class="auth-chip" title={userName ?? ''}>{userName}</span>
+		{#if profileHref}
+			<a class="auth-chip link" href={profileHref} title="View your profile">{userName}</a>
+		{:else}
+			<span class="auth-chip" title={userName ?? ''}>{userName}</span>
+		{/if}
 		<button class="btn btn-ghost" onclick={() => signOut()}>Sign out</button>
 	{:else if authConfigured}
 		<button class="btn btn-primary" onclick={() => signIn()}>Sign in</button>
