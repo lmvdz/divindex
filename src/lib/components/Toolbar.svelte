@@ -37,6 +37,7 @@
 		<a href="/" aria-current="page" class="active">Terminal</a>
 		<a href="/screener">Screener</a>
 		<a href="/ladder">Ladder</a>
+		<a href="/analytics">Analytics</a>
 	</nav>
 	<span class="lg-chip" title="Active league">{league}</span>
 	<span class="tb-spacer"></span>

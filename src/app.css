@@ -1788,3 +1788,138 @@ a {
 	margin: 28px 0 0;
 	text-align: center;
 }
+
+/* analytics (premium) */
+.pro-pill {
+	margin-left: 6px;
+	padding: 1px 6px;
+	border-radius: 999px;
+	font-size: 9px;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	color: var(--bg);
+	background: var(--gold);
+	vertical-align: middle;
+}
+.an-tabs {
+	margin-bottom: 16px;
+}
+.upsell {
+	max-width: 640px;
+	margin: 24px auto;
+	padding: 28px;
+	border: 1px solid var(--gold-deep);
+	border-radius: var(--radius);
+	background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 8%, var(--surface-2)), var(--surface));
+	text-align: center;
+}
+.upsell h1 {
+	margin: 4px 0 10px;
+	font-family: var(--serif);
+}
+.upsell-list {
+	text-align: left;
+	margin: 18px auto;
+	max-width: 520px;
+	display: grid;
+	gap: 8px;
+	color: var(--muted);
+	font-size: 14px;
+	list-style: none;
+	padding: 0;
+}
+.upsell-list b {
+	color: var(--gold-soft);
+}
+.uid {
+	color: var(--gold);
+	background: var(--surface-3);
+	padding: 2px 6px;
+	border-radius: 6px;
+}
+.an-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 12px;
+	margin-bottom: 12px;
+}
+.an-card {
+	border: 1px solid var(--border);
+	border-radius: var(--radius-sm);
+	background: var(--surface-2);
+	padding: 14px 16px;
+}
+.an-card.wide {
+	grid-column: 1 / -1;
+}
+.an-card h3 {
+	margin: 0 0 10px;
+	font-size: 14px;
+	color: var(--text);
+}
+.an-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 6px;
+	font-size: 13px;
+}
+.an-list li {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+.an-list li > :first-child {
+	margin-right: auto;
+	color: var(--text);
+}
+.an-list a {
+	color: var(--text);
+	text-decoration: none;
+}
+.an-list a:hover {
+	color: var(--gold-soft);
+}
+.breadth-bar {
+	display: flex;
+	height: 10px;
+	border-radius: 999px;
+	overflow: hidden;
+	margin-bottom: 8px;
+	background: var(--surface-3);
+}
+.breadth-bar .b-up {
+	background: var(--pos);
+}
+.breadth-bar .b-down {
+	background: var(--neg);
+}
+.breadth-bar .b-flat {
+	background: var(--faint);
+}
+.corr-wrap {
+	overflow-x: auto;
+}
+.corr {
+	border-collapse: collapse;
+	font-size: 11px;
+}
+.corr th,
+.corr td {
+	padding: 4px 6px;
+	text-align: center;
+	font-family: var(--mono);
+	white-space: nowrap;
+}
+.corr .rowlab {
+	text-align: left;
+	color: var(--muted);
+	max-width: 180px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.corr td {
+	color: var(--text);
+}

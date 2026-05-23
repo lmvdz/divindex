@@ -109,6 +109,7 @@
 			<a href="/">Terminal</a>
 			<a href="/screener" aria-current="page" class="active">Screener</a>
 			<a href="/ladder">Ladder</a>
+			<a href="/analytics">Analytics</a>
 		</nav>
 		<span class="tb-spacer"></span>
 		<div class="quote-toggle" role="group" aria-label="Quote currency">

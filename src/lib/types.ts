@@ -139,6 +139,53 @@ export interface Calibration {
 	byH: Record<Horizon, Calib>;
 }
 
+export interface MarketAnalytics {
+	league: string;
+	asOf: string;
+	breadth: { up: number; down: number; flat: number; pct: number };
+	volatility: { apiId: string; name: string; vol: number; price: number; change1dPct: number }[];
+	liquidity: { apiId: string; name: string; volume: number; price: number }[];
+	movers: { apiId: string; name: string; changePct: number; price: number }[];
+	correlations: { ids: { apiId: string; name: string }[]; matrix: number[][] };
+}
+
+export interface SmartSignal {
+	apiId: string;
+	name: string;
+	horizon: Horizon;
+	price: number; // current, Exalted
+	smart: number; // top-forecaster consensus target, Exalted
+	crowd: number; // all-forecaster consensus target, Exalted
+	edgePct: number; // smart vs current price (signed %)
+	divergePct: number; // smart vs crowd (signed %)
+	n: number; // top forecasters contributing
+}
+
+export interface SmartMoney {
+	league: string;
+	updatedAt: number;
+	signals: SmartSignal[];
+}
+
+export interface MyBreakdown {
+	key: string; // currency name or horizon label
+	calls: number;
+	hits: number;
+	accAvg: number;
+}
+
+export interface MyAnalytics {
+	league: string;
+	calls: number;
+	hits: number;
+	accAvg: number;
+	points: number;
+	pnl: number; // simulated: sum of directional return if you'd traded each call
+	calibration: { bucket: number; predicted: number; actual: number; n: number }[];
+	byCurrency: MyBreakdown[];
+	byHorizon: MyBreakdown[];
+}
+
 export interface Economy {
 	marketCap: number;
 	volume: number;

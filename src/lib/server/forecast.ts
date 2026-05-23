@@ -9,9 +9,13 @@ import type {
 	Ladder,
 	LadderRow,
 	Market,
+	MyAnalytics,
+	MyBreakdown,
 	PlayerStats,
 	PredPoint,
-	Profile
+	Profile,
+	SmartMoney,
+	SmartSignal
 } from '$lib/types';
 import { earned } from '$lib/badges';
 import { handleOf } from '$lib/handle';
@@ -89,6 +93,8 @@ function median(xs: number[]): number | null {
 	const m = Math.floor(s.length / 2);
 	return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // ---- scoring ---------------------------------------------------------------
 // Direction + magnitude: a win/loss on calling the move, plus an accuracy bonus
@@ -404,4 +410,139 @@ export async function getCalibration(platform: Plat, market: Market): Promise<Ca
 		}
 	}
 	return { league: market.league, overall: rate(overall), byH: { hour: rate(byH.hour), day: rate(byH.day), week: rate(byH.week) } };
+}
+
+// ---- premium: smart-money signals ------------------------------------------
+// What the top-ranked diviners are forecasting on the current open epochs,
+// vs the whole crowd and the current price. Edge = sharp consensus vs price.
+export async function getSmartMoney(platform: Plat, market: Market): Promise<SmartMoney> {
+	const kv = kvOf(platform);
+	const db = await load(kv);
+	if (maybeRollover(db, market.league)) await save(kv, db);
+	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
+	const nameOf = new Map(market.currencies.map((c) => [c.apiId, c.name]));
+
+	const sharp = Object.values(db.users ?? {})
+		.filter((u) => u.calls >= 5)
+		.sort((a, b) => b.points - a.points || b.accSum / (b.calls || 1) - a.accSum / (a.calls || 1));
+	const topPids = new Set(sharp.slice(0, 25).map((u) => u.pid));
+
+	const now = Date.now();
+	const signals: SmartSignal[] = [];
+	for (const e of db.epochs) {
+		if (e.settled || e.end <= now || e.end !== epochEnd(e.horizon)) continue; // current open epoch only
+		const price = pm.get(e.currencyApiId);
+		if (price == null || !(price > 0)) continue;
+		const smartPreds = e.calls.filter((c) => topPids.has(c.pid)).map((c) => c.predicted);
+		const crowd = median(e.calls.map((c) => c.predicted));
+		const smart = median(smartPreds);
+		if (smart == null || crowd == null || smartPreds.length < 2) continue;
+		signals.push({
+			apiId: e.currencyApiId,
+			name: nameOf.get(e.currencyApiId) ?? e.currencyApiId,
+			horizon: e.horizon,
+			price,
+			smart,
+			crowd,
+			edgePct: round2(((smart - price) / price) * 100),
+			divergePct: round2(((smart - crowd) / (crowd || 1)) * 100),
+			n: smartPreds.length
+		});
+	}
+	signals.sort((a, b) => Math.abs(b.edgePct) - Math.abs(a.edgePct));
+	return { league: market.league, updatedAt: Date.now(), signals: signals.slice(0, 40) };
+}
+
+// ---- premium: personal performance analytics -------------------------------
+export async function getMyPerformance(platform: Plat, market: Market, pid: string | undefined): Promise<MyAnalytics> {
+	const kv = kvOf(platform);
+	const db = await load(kv);
+	const rolled = maybeRollover(db, market.league);
+	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
+	const nameOf = new Map(market.currencies.map((c) => [c.apiId, c.name]));
+	if (settleDue(db, (cid) => pm.get(cid)) || rolled) await save(kv, db);
+
+	const u = pid ? db.users?.[pid] : undefined;
+	const base: MyAnalytics = {
+		league: market.league,
+		calls: 0,
+		hits: 0,
+		accAvg: 0,
+		points: u?.points ?? 0,
+		pnl: 0,
+		calibration: [],
+		byCurrency: [],
+		byHorizon: []
+	};
+	if (!pid) return base;
+
+	type Rec = { cur: string; hz: Horizon; acc: number; hit: boolean; rp: number; ra: number };
+	const recs: Rec[] = [];
+	for (const e of db.epochs) {
+		const actual = e.settled?.actual;
+		if (actual == null || !(actual > 0)) continue;
+		const c = e.calls.find((x) => x.pid === pid);
+		if (!c) continue;
+		const acc = Math.max(0, 1 - Math.min(1, Math.abs(c.predicted - actual) / actual));
+		const cb = c.base && c.base > 0 ? c.base : null;
+		const hit = cb != null && Math.sign(c.predicted - cb) !== 0 && Math.sign(c.predicted - cb) === Math.sign(actual - cb);
+		recs.push({
+			cur: nameOf.get(e.currencyApiId) ?? e.currencyApiId,
+			hz: e.horizon,
+			acc,
+			hit,
+			rp: cb != null ? c.predicted / cb - 1 : 0,
+			ra: cb != null ? actual / cb - 1 : 0
+		});
+	}
+	if (!recs.length) return base;
+
+	const calls = recs.length;
+	const hits = recs.filter((r) => r.hit).length;
+	const accAvg = recs.reduce((s, r) => s + r.acc, 0) / calls;
+	const pnl = recs.reduce((s, r) => s + Math.sign(r.rp) * r.ra, 0); // sim: trade your own direction
+
+	const group = (key: (r: Rec) => string): MyBreakdown[] => {
+		const m = new Map<string, { calls: number; hits: number; acc: number }>();
+		for (const r of recs) {
+			const k = key(r);
+			const g = m.get(k) ?? { calls: 0, hits: 0, acc: 0 };
+			g.calls++;
+			if (r.hit) g.hits++;
+			g.acc += r.acc;
+			m.set(k, g);
+		}
+		return [...m.entries()]
+			.map(([k, g]) => ({ key: k, calls: g.calls, hits: g.hits, accAvg: g.acc / g.calls }))
+			.sort((a, b) => b.calls - a.calls);
+	};
+
+	const hzLabel = (h: Horizon) => (h === 'hour' ? '1H' : h === 'day' ? '1D' : '1W');
+	const sorted = recs.filter((r) => Number.isFinite(r.rp)).sort((a, b) => a.rp - b.rp);
+	const bins = Math.min(6, sorted.length);
+	const calibration: MyAnalytics['calibration'] = [];
+	if (bins > 0) {
+		const size = Math.ceil(sorted.length / bins);
+		for (let i = 0; i < sorted.length; i += size) {
+			const slice = sorted.slice(i, i + size);
+			calibration.push({
+				bucket: calibration.length,
+				predicted: round2((slice.reduce((s, r) => s + r.rp, 0) / slice.length) * 100),
+				actual: round2((slice.reduce((s, r) => s + r.ra, 0) / slice.length) * 100),
+				n: slice.length
+			});
+		}
+	}
+
+	return {
+		league: market.league,
+		calls,
+		hits,
+		accAvg,
+		points: u?.points ?? 0,
+		pnl: round2(pnl * 100),
+		calibration,
+		byCurrency: group((r) => r.cur).slice(0, 12),
+		byHorizon: group((r) => hzLabel(r.hz))
+	};
 }
