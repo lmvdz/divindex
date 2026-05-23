@@ -4,15 +4,18 @@
 	import { page } from '$app/state';
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
+	import { dashboard, WIDGETS } from '$lib/dashboard.svelte';
 	import type { AiBriefing, AlertRule, Holding, Portfolio } from '$lib/types';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 	const signedIn = $derived(!!(page.data.session as { user?: unknown } | null)?.user);
 
-	type Tab = 'market' | 'smart' | 'ai' | 'fair' | 'arb' | 'me' | 'port' | 'alerts';
-	let tab = $state<Tab>('market');
+	type Tab = 'dashboard' | 'market' | 'smart' | 'ai' | 'fair' | 'arb' | 'me' | 'port' | 'alerts';
+	let tab = $state<Tab>('dashboard');
+	let customizing = $state(false);
 	const TABS: { id: Tab; label: string }[] = [
+		{ id: 'dashboard', label: 'Dashboard' },
 		{ id: 'market', label: 'Market intelligence' },
 		{ id: 'smart', label: 'Signal' },
 		{ id: 'ai', label: 'AI Analyst' },
@@ -237,7 +240,89 @@
 				{/each}
 			</div>
 
-			{#if tab === 'market'}
+			{#if tab === 'dashboard'}
+				<div class="dash-head">
+					<span class="muted">Your overview — pick what you watch</span>
+					<button class="btn btn-ghost" onclick={() => (customizing = !customizing)}>{customizing ? 'Done' : '⚙ Customize'}</button>
+				</div>
+				{#if customizing}
+					<div class="dash-customize">
+						{#each WIDGETS as w (w.id)}
+							<button class="dash-chip" class:on={dashboard.has(w.id)} onclick={() => dashboard.toggle(w.id)}>{dashboard.has(w.id) ? '✓' : '+'} {w.label}</button>
+						{/each}
+					</div>
+				{/if}
+				<div class="an-grid">
+					{#if dashboard.has('standing')}
+						<section class="an-card">
+							<h3>Your performance</h3>
+							{#if me.calls > 0}
+								<ul class="an-list">
+									<li><span>Settled calls</span><span class="mono">{me.calls}</span></li>
+									<li><span>Direction</span><span class="mono {cls(me.hits / me.calls - 0.5)}">{Math.round((me.hits / me.calls) * 100)}%</span></li>
+									<li><span>Accuracy</span><span class="mono">{Math.round(me.accAvg * 100)}%</span></li>
+									<li><span>Omens</span><span class="mono">{compact(me.points)}</span></li>
+									<li><span>Sim. P&amp;L</span><span class="mono {cls(me.pnl)}">{pct(me.pnl)}</span></li>
+								</ul>
+							{:else}<p class="muted">No settled calls yet.</p>{/if}
+						</section>
+					{/if}
+					{#if dashboard.has('portfolio')}
+						<section class="an-card">
+							<h3>Portfolio</h3>
+							{#if port && port.holdings.length}
+								<ul class="an-list">
+									<li><span>Total value</span><span class="mono">{fmt(port.total)} EX</span></li>
+									<li><span>P&amp;L</span><span class="mono {cls(port.pnl)}">{fmt(port.pnl)} EX</span></li>
+									<li><span>Positions</span><span class="mono">{port.holdings.length}</span></li>
+								</ul>
+							{:else}<p class="muted">No holdings yet — add some on the Portfolio tab.</p>{/if}
+						</section>
+					{/if}
+					{#if dashboard.has('signal')}
+						<section class="an-card">
+							<h3>Top signal</h3>
+							{#if smart.signals.length}
+								<ul class="an-list">
+									{#each smart.signals.slice(0, 5) as s (s.apiId + s.horizon)}
+										<li><a href="/?c={s.apiId}">{s.name}</a><span class="muted">{hzLabel(s.horizon)}</span><span class="mono {cls(s.edgePct)}">{pct(s.edgePct)}</span></li>
+									{/each}
+								</ul>
+							{:else}<p class="muted">No signals yet.</p>{/if}
+						</section>
+					{/if}
+					{#if dashboard.has('fair')}
+						<section class="an-card">
+							<h3>Fair-value flags</h3>
+							<ul class="an-list">
+								{#each fair.rows.slice(0, 5) as r (r.apiId)}
+									<li><a href="/?c={r.apiId}">{r.name}</a><span class="mono {cls(r.deviationPct)}">{pct(r.deviationPct)}</span></li>
+								{/each}
+							</ul>
+						</section>
+					{/if}
+					{#if dashboard.has('breadth')}
+						<section class="an-card">
+							<h3>Market breadth</h3>
+							<div class="breadth-bar"><span class="b-up" style="flex:{market.breadth.up}"></span><span class="b-flat" style="flex:{market.breadth.flat}"></span><span class="b-down" style="flex:{market.breadth.down}"></span></div>
+							<p class="muted">{market.breadth.pct}% advancing</p>
+						</section>
+					{/if}
+					{#if dashboard.has('movers')}
+						<section class="an-card">
+							<h3>Biggest movers</h3>
+							<ul class="an-list">
+								{#each market.movers.slice(0, 6) as mv (mv.apiId)}
+									<li><a href="/?c={mv.apiId}">{mv.name}</a><span class="mono {cls(mv.changePct)}">{pct(mv.changePct)}</span></li>
+								{/each}
+							</ul>
+						</section>
+					{/if}
+				</div>
+				{#if !dashboard.enabled.length}
+					<p class="muted">No widgets selected — hit Customize to add some.</p>
+				{/if}
+			{:else if tab === 'market'}
 				<div class="an-grid">
 					<section class="an-card">
 						<h3>Market breadth (24h)</h3>

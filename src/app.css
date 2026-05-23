@@ -1899,6 +1899,37 @@ a {
 .an-tabs {
 	margin-bottom: 16px;
 }
+.dash-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+.dash-customize {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	margin-bottom: 14px;
+	padding: 12px;
+	border: 1px solid var(--border-2);
+	border-radius: var(--radius-sm);
+	background: var(--surface-2);
+}
+.dash-chip {
+	padding: 4px 10px;
+	border-radius: 999px;
+	border: 1px solid var(--border-2);
+	background: var(--surface-3);
+	color: var(--muted);
+	font-size: 12px;
+	cursor: pointer;
+}
+.dash-chip.on {
+	color: var(--gold);
+	border-color: var(--gold-deep);
+	background: color-mix(in srgb, var(--gold) 10%, transparent);
+}
 .upsell {
 	max-width: 640px;
 	margin: 24px auto;
