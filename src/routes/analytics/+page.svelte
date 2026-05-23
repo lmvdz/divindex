@@ -167,30 +167,49 @@
 	const perfLines = $derived(
 		(data.market?.performance ?? []).map((l, i) => ({ ...l, color: PERF_COLORS[i % PERF_COLORS.length] }))
 	);
+	// log scale of the rebased ratio (1 + pct/100): +100% and −50% are symmetric,
+	// so a few outliers don't flatten everyone else into a band.
+	const lr = (pct: number) => Math.log(Math.max(0.001, 1 + pct / 100));
 	const perfScale = $derived.by(() => {
 		const pts = perfLines.flatMap((l) => l.series);
 		if (!pts.length) return null;
-		const pc = pts.map((p) => p.pct);
+		const ls = pts.map((p) => lr(p.pct));
+		let minL = Math.min(...ls, 0);
+		let maxL = Math.max(...ls, 0);
+		if (maxL - minL < 1e-6) {
+			minL -= 0.1;
+			maxL += 0.1;
+		}
 		const ts = pts.map((p) => p.t);
-		return { minP: Math.min(...pc, 0), maxP: Math.max(...pc, 0), minT: Math.min(...ts), maxT: Math.max(...ts) };
+		return { minL, maxL, minT: Math.min(...ts), maxT: Math.max(...ts) };
 	});
 	const perfLegend = $derived(
 		[...perfLines]
 			.map((l) => ({ ...l, final: l.series.length ? l.series[l.series.length - 1].pct : 0 }))
 			.sort((a, b) => b.final - a.final)
 	);
+	function perfY(pct: number): number {
+		const s = perfScale;
+		if (!s) return 0;
+		return PERF_H - ((lr(pct) - s.minL) / (s.maxL - s.minL || 1)) * PERF_H;
+	}
 	function perfPath(series: { t: number; pct: number }[]): string {
 		const s = perfScale;
 		if (!s) return '';
-		const pspan = s.maxP - s.minP || 1;
 		const tspan = s.maxT - s.minT || 1;
 		return series
-			.map((p, i) => `${i ? 'L' : 'M'}${(((p.t - s.minT) / tspan) * PERF_W).toFixed(1)} ${(PERF_H - ((p.pct - s.minP) / pspan) * PERF_H).toFixed(1)}`)
+			.map((p, i) => `${i ? 'L' : 'M'}${(((p.t - s.minT) / tspan) * PERF_W).toFixed(1)} ${perfY(p.pct).toFixed(1)}`)
 			.join(' ');
 	}
-	const perfZeroY = $derived(
-		perfScale ? PERF_H - ((0 - perfScale.minP) / ((perfScale.maxP - perfScale.minP) || 1)) * PERF_H : 0
-	);
+	const PERF_LEVELS = [-90, -75, -50, -25, -10, -5, 0, 5, 10, 25, 50, 100, 200, 300, 500, 1000];
+	const perfGrid = $derived.by(() => {
+		const s = perfScale;
+		if (!s) return [] as { v: number; y: number }[];
+		return PERF_LEVELS.filter((v) => {
+			const l = lr(v);
+			return l >= s.minL - 1e-9 && l <= s.maxL + 1e-9;
+		}).map((v) => ({ v, y: perfY(v) }));
+	});
 	const hzLabel = (h: string) => (h === 'hour' ? '1H' : h === 'day' ? '1D' : '1W');
 	function equitySpark(eq: { t: number; cum: number }[]): string {
 		if (eq.length < 2) return '';
@@ -390,14 +409,19 @@
 				</div>
 
 				<section class="an-card wide">
-					<h3>Relative performance <span class="muted">— top 16 by volume, rebased to 0% (last ~30d)</span></h3>
+					<h3>Relative performance <span class="muted">— top 16 by volume, log-scaled % (last ~30d)</span></h3>
 					<div class="perf-wrap">
 						<svg class="perf-chart" viewBox="0 0 {PERF_W} {PERF_H}" preserveAspectRatio="none" aria-label="Relative performance">
-							<line class="perf-zero" x1="0" y1={perfZeroY} x2={PERF_W} y2={perfZeroY} />
+							{#each perfGrid as g (g.v)}
+									<line class="perf-grid" class:zero={g.v === 0} x1="0" y1={g.y} x2={PERF_W} y2={g.y} />
+								{/each}
 							{#each perfLines as l (l.apiId)}
 								<path d={perfPath(l.series)} style="stroke:{l.color}" />
 							{/each}
 						</svg>
+						{#each perfGrid as g (g.v)}
+							<span class="perf-ylabel" class:zero={g.v === 0} style="top:{(g.y / PERF_H) * 100}%">{g.v > 0 ? '+' : ''}{g.v}%</span>
+						{/each}
 					</div>
 					<ul class="perf-legend">
 						{#each perfLegend as l (l.apiId)}
