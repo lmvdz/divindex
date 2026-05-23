@@ -420,6 +420,15 @@
 					};
 				});
 			}
+			// keep candles gapless AFTER any quote conversion — dividing each candle
+			// by its own bucket's divine rate otherwise reintroduces open/close gaps
+			// in non-Exalted quotes (open/dv[i] ≠ prevClose/dv[i-1]).
+			for (let i = 1; i < cs.length; i++) {
+				const o = cs[i - 1].close;
+				cs[i].open = o;
+				if (o > cs[i].high) cs[i].high = o;
+				if (o < cs[i].low) cs[i].low = o;
+			}
 			candles = cs;
 		} finally {
 			loading = false;
