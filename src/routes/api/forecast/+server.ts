@@ -19,7 +19,8 @@ async function sessionUser(locals: App.Locals, platform: App.Platform | undefine
 
 export const GET: RequestHandler = async ({ url, cookies, locals, platform }) => {
 	const user = await sessionUser(locals, platform);
-	const pid = user ? `u:${user.id}` : cookies.get('dx_pid');
+	// match POST: guest cookie only counts when no OAuth is configured (local/dev)
+	const pid = user ? `u:${user.id}` : authConfigured(platform) ? undefined : cookies.get('dx_pid');
 	const market = await getMarket();
 	const c = pick(market, url.searchParams.get('currency'));
 	if (!c) return json({ error: 'No market' }, { status: 503 });

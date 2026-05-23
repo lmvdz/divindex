@@ -367,6 +367,75 @@ export async function addCall(
 	await save(kv, db);
 }
 
+// Merge a guest (dx_pid cookie) into the signed-in user: reassign live epoch
+// calls and fold the guest's standings into the user's aggregate. Fixes the
+// split where forecasts made before sign-in (or while auth was misconfigured)
+// were stranded under a guest id. Idempotent; returns true if anything moved.
+export async function claimGuest(
+	platform: Plat,
+	guestPid: string,
+	userPid: string,
+	userName: string
+): Promise<boolean> {
+	if (!guestPid || guestPid === userPid) return false;
+	const kv = kvOf(platform);
+	const db = await load(kv);
+	let moved = false;
+
+	// 1) reassign live/historical calls from guest → user (one call per pid per
+	//    epoch — keep the most recent if both ever called the same epoch)
+	for (const e of db.epochs) {
+		let touched = false;
+		for (const c of e.calls) {
+			if (c.pid === guestPid) {
+				c.pid = userPid;
+				c.name = userName;
+				touched = true;
+				moved = true;
+			}
+		}
+		if (touched) {
+			const latest = new Map<string, Call>();
+			for (const c of e.calls) {
+				const prev = latest.get(c.pid);
+				if (!prev || c.at >= prev.at) latest.set(c.pid, c);
+			}
+			e.calls = [...latest.values()];
+		}
+	}
+
+	// 2) fold the guest's settled standings into the user's
+	const g = db.users?.[guestPid];
+	if (g) {
+		const u = ensureUser(db, userPid, userName);
+		u.name = userName;
+		u.points += g.points;
+		u.calls += g.calls;
+		u.hits += g.hits;
+		u.accSum += g.accSum;
+		u.oracleBeats += g.oracleBeats;
+		u.bestAcc = Math.max(u.bestAcc, g.bestAcc);
+		u.bestStreak = Math.max(u.bestStreak, g.bestStreak);
+		u.streak = Math.max(u.streak, g.streak); // same human — approximate on merge
+		u.lastAt = Math.max(u.lastAt, g.lastAt);
+		for (const m of g.markets) if (!u.markets.includes(m)) u.markets.push(m);
+		for (const h of HORIZONS) {
+			const a = u.byH[h];
+			const b = g.byH[h];
+			a.calls += b.calls;
+			a.hits += b.hits;
+			a.points += b.points;
+			a.accSum += b.accSum;
+		}
+		u.badges = earned(u);
+		delete db.users![guestPid];
+		moved = true;
+	}
+
+	if (moved) await save(kv, db);
+	return moved;
+}
+
 // ---- leaderboard / profile -------------------------------------------------
 function toRow(u: PlayerStats, horizon?: Horizon): LadderRow {
 	const s: HStat = horizon
