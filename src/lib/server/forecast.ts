@@ -96,6 +96,61 @@ function median(xs: number[]): number | null {
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
+function pearson(xs: number[], ys: number[]): number {
+	const n = Math.min(xs.length, ys.length);
+	if (n < 3) return 0;
+	let mx = 0;
+	let my = 0;
+	for (let i = 0; i < n; i++) {
+		mx += xs[i];
+		my += ys[i];
+	}
+	mx /= n;
+	my /= n;
+	let num = 0;
+	let dx = 0;
+	let dy = 0;
+	for (let i = 0; i < n; i++) {
+		const a = xs[i] - mx;
+		const b = ys[i] - my;
+		num += a * b;
+		dx += a * a;
+		dy += b * b;
+	}
+	const den = Math.sqrt(dx * dy);
+	return den ? num / den : 0;
+}
+
+// Per-forecaster skill from settled calls: Information Coefficient (correlation
+// of predicted return vs actual return), sample size, and an alpha weight that
+// shrinks small samples — separates real edge from luck.
+function forecasterSkill(db: DB): Map<string, { name: string; ic: number; n: number; hit: number; weight: number }> {
+	const byPid = new Map<string, { name: string; rp: number[]; ra: number[]; hits: number }>();
+	for (const e of db.epochs) {
+		const actual = e.settled?.actual;
+		if (actual == null || !(actual > 0)) continue;
+		for (const c of e.calls) {
+			if (!(c.base && c.base > 0)) continue;
+			const g = byPid.get(c.pid) ?? { name: c.name, rp: [], ra: [], hits: 0 };
+			g.name = c.name;
+			const rp = c.predicted / c.base - 1;
+			const ra = actual / c.base - 1;
+			g.rp.push(rp);
+			g.ra.push(ra);
+			if (Math.sign(rp) !== 0 && Math.sign(rp) === Math.sign(ra)) g.hits++;
+			byPid.set(c.pid, g);
+		}
+	}
+	const out = new Map<string, { name: string; ic: number; n: number; hit: number; weight: number }>();
+	for (const [pid, g] of byPid) {
+		const n = g.rp.length;
+		const ic = pearson(g.rp, g.ra);
+		const weight = Math.max(0, ic) * Math.min(1, n / 20); // shrink small samples
+		out.set(pid, { name: g.name, ic: round2(ic), n, hit: n ? g.hits / n : 0, weight });
+	}
+	return out;
+}
+
 // ---- scoring ---------------------------------------------------------------
 // Direction + magnitude: a win/loss on calling the move, plus an accuracy bonus
 // for how close, scaled by the player's correct-direction streak.
@@ -422,10 +477,7 @@ export async function getSmartMoney(platform: Plat, market: Market): Promise<Sma
 	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
 	const nameOf = new Map(market.currencies.map((c) => [c.apiId, c.name]));
 
-	const sharp = Object.values(db.users ?? {})
-		.filter((u) => u.calls >= 5)
-		.sort((a, b) => b.points - a.points || b.accSum / (b.calls || 1) - a.accSum / (a.calls || 1));
-	const topPids = new Set(sharp.slice(0, 25).map((u) => u.pid));
+	const skill = forecasterSkill(db);
 
 	const now = Date.now();
 	const signals: SmartSignal[] = [];
@@ -433,10 +485,13 @@ export async function getSmartMoney(platform: Plat, market: Market): Promise<Sma
 		if (e.settled || e.end <= now || e.end !== epochEnd(e.horizon)) continue; // current open epoch only
 		const price = pm.get(e.currencyApiId);
 		if (price == null || !(price > 0)) continue;
-		const smartPreds = e.calls.filter((c) => topPids.has(c.pid)).map((c) => c.predicted);
+		const weighted = e.calls
+			.map((c) => ({ p: c.predicted, w: skill.get(c.pid)?.weight ?? 0 }))
+			.filter((x) => x.w > 0 && x.p > 0);
 		const crowd = median(e.calls.map((c) => c.predicted));
-		const smart = median(smartPreds);
-		if (smart == null || crowd == null || smartPreds.length < 2) continue;
+		if (weighted.length < 2 || crowd == null) continue;
+		const wsum = weighted.reduce((s, x) => s + x.w, 0);
+		const smart = weighted.reduce((s, x) => s + x.p * x.w, 0) / wsum; // alpha-weighted consensus
 		signals.push({
 			apiId: e.currencyApiId,
 			name: nameOf.get(e.currencyApiId) ?? e.currencyApiId,
@@ -446,11 +501,16 @@ export async function getSmartMoney(platform: Plat, market: Market): Promise<Sma
 			crowd,
 			edgePct: round2(((smart - price) / price) * 100),
 			divergePct: round2(((smart - crowd) / (crowd || 1)) * 100),
-			n: smartPreds.length
+			n: weighted.length
 		});
 	}
 	signals.sort((a, b) => Math.abs(b.edgePct) - Math.abs(a.edgePct));
-	return { league: market.league, updatedAt: Date.now(), signals: signals.slice(0, 40) };
+	const forecasters = [...skill.values()]
+		.filter((s) => s.n >= 3)
+		.sort((a, b) => b.ic - a.ic)
+		.slice(0, 15)
+		.map((s) => ({ name: s.name, ic: s.ic, n: s.n }));
+	return { league: market.league, updatedAt: Date.now(), signals: signals.slice(0, 40), forecasters };
 }
 
 // ---- premium: personal performance analytics -------------------------------

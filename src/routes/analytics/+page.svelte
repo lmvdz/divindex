@@ -211,11 +211,21 @@
 								</tbody>
 							</table>
 						</div>
-						<p class="muted">Edge = sharp consensus vs current price · vs crowd = sharp vs everyone. Sharp = top-ranked diviners with ≥5 calls.</p>
+						<p class="muted">Edge = alpha-weighted sharp consensus vs current price · vs crowd = sharp vs everyone. Sharp = forecasters weighted by their information coefficient (proven skill, not just rank).</p>
 					{:else}
-						<p class="muted">No qualifying signals yet — need ≥2 top-forecaster calls on an open epoch. Builds as the game gets played.</p>
+						<p class="muted">No qualifying signals yet — needs ≥2 proven forecasters (positive IC) on an open epoch. Sharpens as the game is played.</p>
 					{/if}
 				</section>
+				{#if smart.forecasters.length}
+					<section class="an-card wide">
+						<h3>Top forecasters by alpha (information coefficient)</h3>
+						<ul class="an-list">
+							{#each smart.forecasters as f, i (i)}
+								<li><span>{f.name}</span><span class="mono {f.ic >= 0 ? 'pos' : 'neg'}">IC {f.ic.toFixed(2)}</span><span class="muted">{f.n} settled</span></li>
+							{/each}
+						</ul>
+					</section>
+				{/if}
 			{:else if tab === 'me'}
 				{#if me.calls > 0}
 					<section class="prof-stats">

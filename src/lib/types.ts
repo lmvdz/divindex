@@ -165,6 +165,7 @@ export interface SmartMoney {
 	league: string;
 	updatedAt: number;
 	signals: SmartSignal[];
+	forecasters: { name: string; ic: number; n: number }[]; // top by information coefficient
 }
 
 export interface MyBreakdown {
