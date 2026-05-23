@@ -45,6 +45,7 @@
 	let bb = $state(false);
 	let vwap = $state(false);
 	let cone = $state(false);
+	let fc = $state(true);
 	const intraday = $derived(timeframe === '1h' || timeframe === '4h');
 	const kindFor = (tf: Timeframe): 'line' | 'candle' => (tf === '1h' ? 'line' : 'candle');
 	const quoteLabel = $derived(QUOTE_LABEL[effectiveQuote(currency.apiId, quote)]);
@@ -299,7 +300,7 @@
 			}
 		}
 		fcLines = [];
-		if (!forecast) return;
+		if (!forecast || !fc) return;
 
 		const addSeries = (pts: PredPoint[], step: number, color: string, dashed: boolean, width: 1 | 2) => {
 			if (!chart || !lcRef || pts.length === 0) return;
@@ -313,10 +314,11 @@
 				color,
 				lineWidth: width,
 				lineStyle: dashed ? lcRef.LineStyle.Dashed : lcRef.LineStyle.Solid,
-				lastValueVisible: true,
+				lastValueVisible: false,
 				priceLineVisible: false,
 				crosshairMarkerVisible: false,
-				pointMarkersVisible: true
+				pointMarkersVisible: true,
+				autoscaleInfoProvider: () => null
 			});
 			s.setData(data as never);
 			fcLines.push(s);
@@ -534,6 +536,10 @@
 		premium;
 		drawCone();
 	});
+	$effect(() => {
+		fc;
+		drawForecast();
+	});
 </script>
 
 <div class="chart-pane">
@@ -560,6 +566,7 @@
 			{/each}
 		</div>
 		<div class="tf-tabs" role="group" aria-label="Indicators">
+			<button class:active={fc} onclick={() => (fc = !fc)} title="Forecast overlay (your + consensus calls)">FC</button>
 			<button class:active={bb} onclick={() => (bb = !bb)} title="Bollinger Bands (20, 2σ)">BB</button>
 			{#if premium}
 				<button class:active={vwap} onclick={() => (vwap = !vwap)} title="VWAP (anchored) — Pro">VWAP</button>
