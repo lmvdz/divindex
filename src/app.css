@@ -1936,3 +1936,13 @@ a {
 .alert-list li {
 	gap: 12px;
 }
+.equity {
+	width: 100%;
+	height: 40px;
+	margin-top: 10px;
+}
+.equity path {
+	fill: none;
+	stroke-width: 2;
+	vector-effect: non-scaling-stroke;
+}

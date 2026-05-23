@@ -68,6 +68,22 @@
 		return r >= 0 ? `rgba(102,207,138,${a * 0.55})` : `rgba(229,113,112,${a * 0.55})`;
 	}
 	const hzLabel = (h: string) => (h === 'hour' ? '1H' : h === 'day' ? '1D' : '1W');
+	function equitySpark(eq: { t: number; cum: number }[]): string {
+		if (eq.length < 2) return '';
+		const w = 240;
+		const h = 40;
+		const vals = eq.map((p) => p.cum);
+		const min = Math.min(...vals, 0);
+		const max = Math.max(...vals, 0);
+		const span = max - min || 1;
+		return eq
+			.map((p, i) => {
+				const x = (i / (eq.length - 1)) * w;
+				const y = h - ((p.cum - min) / span) * h;
+				return `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+			})
+			.join(' ');
+	}
 </script>
 
 <svelte:head>
@@ -188,6 +204,24 @@
 					</div>
 				</section>
 			{:else if tab === 'smart'}
+				<section class="an-card wide">
+					<h3>Divindex Signal — track record <span class="muted">(walk-forward, no lookahead)</span></h3>
+					{#if smart.backtest.trades > 0}
+						<div class="prof-stats">
+							<div><span class="st-label">Signal trades</span><b class="mono">{smart.backtest.trades}</b></div>
+							<div><span class="st-label">Direction</span><b class="mono {cls(smart.backtest.hitRate - 0.5)}">{Math.round(smart.backtest.hitRate * 100)}%</b></div>
+							<div><span class="st-label">Avg / trade</span><b class="mono {cls(smart.backtest.avgReturn)}">{pct(smart.backtest.avgReturn)}</b></div>
+							<div><span class="st-label">Cumulative</span><b class="mono {cls(smart.backtest.cumReturn)}">{pct(smart.backtest.cumReturn)}</b></div>
+						</div>
+						{#if equitySpark(smart.backtest.equity)}
+							<svg class="equity" viewBox="0 0 240 40" preserveAspectRatio="none" aria-hidden="true">
+								<path d={equitySpark(smart.backtest.equity)} class={smart.backtest.cumReturn >= 0 ? 'sp-up' : 'sp-down'} />
+							</svg>
+						{/if}
+					{:else}
+						<p class="muted">Track record builds as proven forecasters' calls settle — it replays the alpha-weighted signal against history with no lookahead.</p>
+					{/if}
+				</section>
 				<section class="an-card wide">
 					<h3>Smart money — sharpest forecasters vs crowd &amp; price</h3>
 					{#if smart.signals.length}

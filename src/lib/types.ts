@@ -161,11 +161,20 @@ export interface SmartSignal {
 	n: number; // top forecasters contributing
 }
 
+export interface SignalBacktest {
+	trades: number;
+	hitRate: number; // 0..1 directional
+	avgReturn: number; // mean per-trade signed return, %
+	cumReturn: number; // cumulative, %
+	equity: { t: number; cum: number }[]; // cumulative return % over time
+}
+
 export interface SmartMoney {
 	league: string;
 	updatedAt: number;
 	signals: SmartSignal[];
 	forecasters: { name: string; ic: number; n: number }[]; // top by information coefficient
+	backtest: SignalBacktest;
 }
 
 export interface MyBreakdown {

@@ -14,6 +14,7 @@ import type {
 	PlayerStats,
 	PredPoint,
 	Profile,
+	SignalBacktest,
 	SmartMoney,
 	SmartSignal
 } from '$lib/types';
@@ -467,6 +468,59 @@ export async function getCalibration(platform: Plat, market: Market): Promise<Ca
 	return { league: market.league, overall: rate(overall), byH: { hour: rate(byH.hour), day: rate(byH.day), week: rate(byH.week) } };
 }
 
+// Walk-forward backtest of the alpha-weighted Signal: replay settled epochs in
+// time order, computing each epoch's signal from ONLY prior-settled data (no
+// lookahead), and accumulate the directional return of trading the signal.
+function signalBacktest(db: DB): SignalBacktest {
+	const settled = db.epochs
+		.filter((e) => e.settled && e.settled.actual > 0 && e.calls.some((c) => c.base && c.base > 0))
+		.sort((a, b) => (a.settled?.at ?? 0) - (b.settled?.at ?? 0));
+	const acc = new Map<string, { rp: number[]; ra: number[] }>();
+	const weightOf = (pid: string): number => {
+		const g = acc.get(pid);
+		if (!g || g.rp.length < 3) return 0;
+		return Math.max(0, pearson(g.rp, g.ra)) * Math.min(1, g.rp.length / 20);
+	};
+	let cum = 0;
+	let trades = 0;
+	let hits = 0;
+	let sumRet = 0;
+	const equity: { t: number; cum: number }[] = [];
+	for (const e of settled) {
+		const actual = e.settled!.actual;
+		const withBase = e.calls.filter((c) => c.base && c.base > 0);
+		const weighted = withBase.map((c) => ({ p: c.predicted, w: weightOf(c.pid) })).filter((x) => x.w > 0 && x.p > 0);
+		if (weighted.length >= 2) {
+			const wsum = weighted.reduce((s, x) => s + x.w, 0);
+			const smart = weighted.reduce((s, x) => s + x.p * x.w, 0) / wsum;
+			const medBase = median(withBase.map((c) => c.base as number)) ?? 0;
+			if (medBase > 0) {
+				const predRet = smart / medBase - 1;
+				const actRet = actual / medBase - 1;
+				const tradeRet = Math.sign(predRet) * actRet;
+				trades++;
+				sumRet += tradeRet;
+				cum += tradeRet;
+				if (Math.sign(predRet) !== 0 && Math.sign(predRet) === Math.sign(actRet)) hits++;
+				equity.push({ t: Math.floor((e.settled?.at ?? 0) / 1000), cum: round2(cum * 100) });
+			}
+		}
+		for (const c of withBase) {
+			const g = acc.get(c.pid) ?? { rp: [], ra: [] };
+			g.rp.push(c.predicted / (c.base as number) - 1);
+			g.ra.push(actual / (c.base as number) - 1);
+			acc.set(c.pid, g);
+		}
+	}
+	return {
+		trades,
+		hitRate: trades ? hits / trades : 0,
+		avgReturn: trades ? round2((sumRet / trades) * 100) : 0,
+		cumReturn: round2(cum * 100),
+		equity
+	};
+}
+
 // ---- premium: smart-money signals ------------------------------------------
 // What the top-ranked diviners are forecasting on the current open epochs,
 // vs the whole crowd and the current price. Edge = sharp consensus vs price.
@@ -510,7 +564,7 @@ export async function getSmartMoney(platform: Plat, market: Market): Promise<Sma
 		.sort((a, b) => b.ic - a.ic)
 		.slice(0, 15)
 		.map((s) => ({ name: s.name, ic: s.ic, n: s.n }));
-	return { league: market.league, updatedAt: Date.now(), signals: signals.slice(0, 40), forecasters };
+	return { league: market.league, updatedAt: Date.now(), signals: signals.slice(0, 40), forecasters, backtest: signalBacktest(db) };
 }
 
 // ---- premium: personal performance analytics -------------------------------
