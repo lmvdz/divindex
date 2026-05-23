@@ -13,6 +13,7 @@
 	import PriceChart from '$lib/components/PriceChart.svelte';
 	import { showTip, moveTip, hideTip } from '$lib/tooltip.svelte';
 	import { watchlist } from '$lib/watchlist.svelte';
+	import { categoryLabel } from '$lib/categories';
 	import type { Currency } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -133,7 +134,7 @@
 		<label class="sr-only" for="scr-cat">Category</label>
 		<select id="scr-cat" class="field scr-cat" bind:value={cat}>
 			{#each cats as c (c)}
-				<option value={c}>{c === 'all' ? 'All categories' : c}</option>
+				<option value={c}>{c === 'all' ? 'All categories' : categoryLabel(c)}</option>
 			{/each}
 		</select>
 		<input class="field scr-search" type="search" placeholder="Search currency…" bind:value={q}
@@ -217,7 +218,7 @@
 									<span class="nm">{c.name}</span>
 								</span>
 							</td>
-							<td class="hide-sm"><span class="cat-tag">{c.category}</span></td>
+							<td class="hide-sm"><span class="cat-tag">{categoryLabel(c.category)}</span></td>
 							<td class="num pr">{fmt(c.price)}{#if effectiveQuote(c.apiId, quote) !== quote}<small
 										class="unit">{QUOTE_SHORT[effectiveQuote(c.apiId, quote)]}</small
 									>{/if}</td>
