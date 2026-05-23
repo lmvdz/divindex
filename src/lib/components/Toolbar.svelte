@@ -45,6 +45,7 @@
 		<a href="/" aria-current="page" class="active">Terminal</a>
 		<a href="/screener">Screener</a>
 		<a href="/ladder">Ladder</a>
+		<a href="/me">My calls</a>
 		<a href="/crafts">Crafts</a>
 		<a href="/analytics">Analytics</a>
 	</nav>

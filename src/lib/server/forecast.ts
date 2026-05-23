@@ -11,6 +11,8 @@ import type {
 	Market,
 	MyAnalytics,
 	MyBreakdown,
+	MyCall,
+	MyCalls,
 	PlayerStats,
 	PredPoint,
 	Profile,
@@ -649,6 +651,88 @@ export async function getSmartMoney(platform: Plat, market: Market): Promise<Sma
 }
 
 // ---- premium: personal performance analytics -------------------------------
+// Free per-call results loop: the player's active (awaiting settlement) and
+// recently settled forecasts with outcomes, plus a 24h recap. Gives the game a
+// visible payoff moment without the premium analytics gate.
+export async function getMyCalls(platform: Plat, market: Market, pid: string | undefined): Promise<MyCalls> {
+	const kv = kvOf(platform);
+	const db = await load(kv);
+	const rolled = maybeRollover(db, market.league);
+	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
+	const nameOf = new Map(market.currencies.map((c) => [c.apiId, c.name]));
+	if (settleDue(db, (cid) => pm.get(cid)) || rolled) await save(kv, db);
+
+	const u = pid ? db.users?.[pid] : undefined;
+	const active: MyCall[] = [];
+	const settled: MyCall[] = [];
+	if (pid) {
+		for (const e of db.epochs) {
+			const c = e.calls.find((x) => x.pid === pid);
+			if (!c) continue;
+			const name = nameOf.get(e.currencyApiId) ?? e.currencyApiId;
+			const base = c.base && c.base > 0 ? c.base : null;
+			if (e.settled && e.settled.actual > 0) {
+				const actual = e.settled.actual;
+				const accuracy = Math.max(0, 1 - Math.min(1, Math.abs(c.predicted - actual) / actual));
+				const pd = base != null ? Math.sign(c.predicted - base) : 0;
+				const dirHit = base != null && pd !== 0 ? pd === Math.sign(actual - base) : null;
+				settled.push({
+					currencyApiId: e.currencyApiId,
+					name,
+					horizon: e.horizon,
+					predicted: c.predicted,
+					base,
+					end: e.end,
+					actual,
+					accuracy,
+					dirHit,
+					settledAt: e.settled.at
+				});
+			} else {
+				active.push({
+					currencyApiId: e.currencyApiId,
+					name,
+					horizon: e.horizon,
+					predicted: c.predicted,
+					base,
+					end: e.end,
+					current: pm.get(e.currencyApiId)
+				});
+			}
+		}
+	}
+	active.sort((a, b) => a.end - b.end);
+	settled.sort((a, b) => (b.settledAt ?? 0) - (a.settledAt ?? 0));
+
+	const dayAgo = Date.now() - 86_400_000;
+	const recent = settled.filter((s) => (s.settledAt ?? 0) >= dayAgo);
+	const recap = {
+		settled: recent.length,
+		hits: recent.filter((s) => s.dirHit).length,
+		accAvg: recent.length ? recent.reduce((s, r) => s + (r.accuracy ?? 0), 0) / recent.length : 0
+	};
+
+	let rank: number | null = null;
+	if (pid && u) {
+		const ranked = Object.values(db.users ?? {})
+			.filter((x) => x.calls > 0)
+			.sort((a, b) => b.points - a.points || b.accSum / (b.calls || 1) - a.accSum / (a.calls || 1));
+		const idx = ranked.findIndex((x) => x.pid === pid);
+		rank = idx === -1 ? null : idx + 1;
+	}
+
+	return {
+		league: market.league,
+		signedIn: !!pid,
+		points: u?.points ?? 0,
+		rank,
+		streak: u?.streak ?? 0,
+		active,
+		settled: settled.slice(0, 50),
+		recap
+	};
+}
+
 export async function getMyPerformance(platform: Plat, market: Market, pid: string | undefined): Promise<MyAnalytics> {
 	const kv = kvOf(platform);
 	const db = await load(kv);

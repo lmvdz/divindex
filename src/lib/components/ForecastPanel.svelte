@@ -144,6 +144,7 @@
 			<div class="sc-row">
 				<span class="sc-rank">Rank <b class="mono">{rank ? `#${rank}` : '—'}</b></span>
 				<span class="sc-omens"><b class="mono">{compact(stats.points)}</b> Omens</span>
+				<a class="sc-link" href="/me">My calls →</a>
 				<a class="sc-link" href="/ladder">Ladder →</a>
 			</div>
 			{#if myTitle}<div class="sc-title">{myTitle}</div>{/if}

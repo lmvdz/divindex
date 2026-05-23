@@ -233,6 +233,33 @@ export interface MyAnalytics {
 	byHorizon: MyBreakdown[];
 }
 
+// A single forecast the player made — active (awaiting settlement) or settled
+// with its outcome. Powers the free "My calls" results loop.
+export interface MyCall {
+	currencyApiId: string;
+	name: string;
+	horizon: Horizon;
+	predicted: number; // Exalted
+	base: number | null; // price when the call was made
+	end: number; // settlement time (ms)
+	current?: number; // current market price (active calls)
+	actual?: number; // settled price
+	accuracy?: number; // 0..1 (settled)
+	dirHit?: boolean | null; // direction correct (null if no base) (settled)
+	settledAt?: number;
+}
+
+export interface MyCalls {
+	league: string;
+	signedIn: boolean;
+	points: number;
+	rank: number | null;
+	streak: number;
+	active: MyCall[]; // soonest settlement first
+	settled: MyCall[]; // most recently settled first
+	recap: { settled: number; hits: number; accAvg: number }; // last 24h
+}
+
 export interface Holding {
 	apiId: string;
 	qty: number;
