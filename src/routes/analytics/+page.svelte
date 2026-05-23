@@ -5,6 +5,7 @@
 	import { fmt, compact } from '$lib/format';
 	import { HORIZON_COLORS } from '$lib/horizons';
 	import { dashboard, WIDGETS } from '$lib/dashboard.svelte';
+	import PerfChart from '$lib/components/PerfChart.svelte';
 	import type { AiBriefing, AlertRule, Holding, Portfolio } from '$lib/types';
 	import type { PageData } from './$types';
 
@@ -160,56 +161,11 @@
 
 	const pct = (x: number) => `${x >= 0 ? '+' : ''}${x.toFixed(1)}%`;
 	const cls = (x: number) => (x > 0 ? 'pos' : x < 0 ? 'neg' : '');
-	// relative-performance (spaghetti) chart
+	// relative-performance (spaghetti) chart — rendered by PerfChart via lightweight-charts
 	const PERF_COLORS = ['#e0b465', '#56b6c2', '#d97aa6', '#66cf8a', '#e57170', '#8aa9c9', '#b08aff', '#d98fe0', '#f3d84a', '#5fd0a8', '#ef9f6a', '#7aa6ff', '#c8cdda', '#9fdfe8', '#f0b3d0', '#a0d995'];
-	const PERF_W = 640;
-	const PERF_H = 260;
 	const perfLines = $derived(
 		(data.market?.performance ?? []).map((l, i) => ({ ...l, color: PERF_COLORS[i % PERF_COLORS.length] }))
 	);
-	// log scale of the rebased ratio (1 + pct/100): +100% and −50% are symmetric,
-	// so a few outliers don't flatten everyone else into a band.
-	const lr = (pct: number) => Math.log(Math.max(0.001, 1 + pct / 100));
-	const perfScale = $derived.by(() => {
-		const pts = perfLines.flatMap((l) => l.series);
-		if (!pts.length) return null;
-		const ls = pts.map((p) => lr(p.pct));
-		let minL = Math.min(...ls, 0);
-		let maxL = Math.max(...ls, 0);
-		if (maxL - minL < 1e-6) {
-			minL -= 0.1;
-			maxL += 0.1;
-		}
-		const ts = pts.map((p) => p.t);
-		return { minL, maxL, minT: Math.min(...ts), maxT: Math.max(...ts) };
-	});
-	const perfLegend = $derived(
-		[...perfLines]
-			.map((l) => ({ ...l, final: l.series.length ? l.series[l.series.length - 1].pct : 0 }))
-			.sort((a, b) => b.final - a.final)
-	);
-	function perfY(pct: number): number {
-		const s = perfScale;
-		if (!s) return 0;
-		return PERF_H - ((lr(pct) - s.minL) / (s.maxL - s.minL || 1)) * PERF_H;
-	}
-	function perfPath(series: { t: number; pct: number }[]): string {
-		const s = perfScale;
-		if (!s) return '';
-		const tspan = s.maxT - s.minT || 1;
-		return series
-			.map((p, i) => `${i ? 'L' : 'M'}${(((p.t - s.minT) / tspan) * PERF_W).toFixed(1)} ${perfY(p.pct).toFixed(1)}`)
-			.join(' ');
-	}
-	const PERF_LEVELS = [-90, -75, -50, -25, -10, -5, 0, 5, 10, 25, 50, 100, 200, 300, 500, 1000];
-	const perfGrid = $derived.by(() => {
-		const s = perfScale;
-		if (!s) return [] as { v: number; y: number }[];
-		return PERF_LEVELS.filter((v) => {
-			const l = lr(v);
-			return l >= s.minL - 1e-9 && l <= s.maxL + 1e-9;
-		}).map((v) => ({ v, y: perfY(v) }));
-	});
 	const hzLabel = (h: string) => (h === 'hour' ? '1H' : h === 'day' ? '1D' : '1W');
 	function equitySpark(eq: { t: number; cum: number }[]): string {
 		if (eq.length < 2) return '';
@@ -410,25 +366,8 @@
 
 				<section class="an-card wide">
 					<h3>Relative performance <span class="muted">— top 16 by volume, log-scaled % (last ~30d)</span></h3>
-					<div class="perf-wrap">
-						<svg class="perf-chart" viewBox="0 0 {PERF_W} {PERF_H}" preserveAspectRatio="none" aria-label="Relative performance">
-							{#each perfGrid as g (g.v)}
-									<line class="perf-grid" class:zero={g.v === 0} x1="0" y1={g.y} x2={PERF_W} y2={g.y} />
-								{/each}
-							{#each perfLines as l (l.apiId)}
-								<path d={perfPath(l.series)} style="stroke:{l.color}" />
-							{/each}
-						</svg>
-						{#each perfGrid as g (g.v)}
-							<span class="perf-ylabel" class:zero={g.v === 0} style="top:{(g.y / PERF_H) * 100}%">{g.v > 0 ? '+' : ''}{g.v}%</span>
-						{/each}
-					</div>
-					<ul class="perf-legend">
-						{#each perfLegend as l (l.apiId)}
-							<li><span class="perf-dot" style="background:{l.color}"></span><a href="/?c={l.apiId}">{l.name}</a><span class="mono {cls(l.final)}">{pct(l.final)}</span></li>
-						{/each}
-					</ul>
-					<p class="muted">Lines that move together are correlated; the spread is who's outperforming. Click a name to open it.</p>
+					<PerfChart lines={perfLines} />
+					<p class="muted">Log-scaled % rebased to each currency's 30-day start, so big and small movers share one readable axis. Hover for that day's values; click a name to open it.</p>
 				</section>
 			{:else if tab === 'smart'}
 				<section class="an-card wide">
