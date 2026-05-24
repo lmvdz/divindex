@@ -260,6 +260,20 @@ export interface MyCalls {
 	recap: { settled: number; hits: number; accAvg: number }; // last 24h
 }
 
+// Admin-only ladder inspector row — distinguishes signed-in (u:<id>) from guest
+// (raw uuid) forecasters so test/guest entries can be spotted and pruned.
+export interface AdminUserRow {
+	pid: string;
+	pidType: 'auth' | 'guest';
+	name: string;
+	points: number;
+	calls: number;
+	hits: number;
+	accAvg: number;
+	streak: number;
+	lastAt: number;
+}
+
 export interface Holding {
 	apiId: string;
 	qty: number;

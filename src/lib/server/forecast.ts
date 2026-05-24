@@ -1,4 +1,5 @@
 import type {
+	AdminUserRow,
 	Calib,
 	Calibration,
 	Forecast,
@@ -651,6 +652,46 @@ export async function getSmartMoney(platform: Plat, market: Market): Promise<Sma
 }
 
 // ---- premium: personal performance analytics -------------------------------
+// ---- admin ladder inspector ------------------------------------------------
+export async function adminListUsers(
+	platform: Plat
+): Promise<{ league: string | null; users: AdminUserRow[] }> {
+	const kv = kvOf(platform);
+	const db = await load(kv);
+	const users: AdminUserRow[] = Object.values(db.users ?? {}).map((u) => ({
+		pid: u.pid,
+		pidType: u.pid.startsWith('u:') ? 'auth' : 'guest',
+		name: u.name,
+		points: u.points,
+		calls: u.calls,
+		hits: u.hits,
+		accAvg: u.calls ? u.accSum / u.calls : 0,
+		streak: u.streak,
+		lastAt: u.lastAt
+	}));
+	users.sort((a, b) => b.points - a.points);
+	return { league: db.currentLeague ?? null, users };
+}
+
+// Fully remove a forecaster: their standings AND their calls across all epochs.
+export async function adminDeleteUser(platform: Plat, pid: string): Promise<boolean> {
+	if (!pid) return false;
+	const kv = kvOf(platform);
+	const db = await load(kv);
+	let changed = false;
+	if (db.users?.[pid]) {
+		delete db.users[pid];
+		changed = true;
+	}
+	for (const e of db.epochs) {
+		const before = e.calls.length;
+		e.calls = e.calls.filter((c) => c.pid !== pid);
+		if (e.calls.length !== before) changed = true;
+	}
+	if (changed) await save(kv, db);
+	return changed;
+}
+
 // Free per-call results loop: the player's active (awaiting settlement) and
 // recently settled forecasts with outcomes, plus a 24h recap. Gives the game a
 // visible payoff moment without the premium analytics gate.
