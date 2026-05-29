@@ -30,6 +30,13 @@ import { handleOf } from '$lib/handle';
 const KEY = 'forecast';
 const HORIZONS: Horizon[] = ['hour', 'day', 'week'];
 
+// Epochs predate league-scoping. One-time heal: stamp league-less epochs with the
+// league that just ended (Fate of the Vaal) so old forecasts stay on that league's
+// charts instead of bleeding onto Standard / the next league.
+const LEGACY_LEAGUE = 'Fate of the Vaal';
+const epochKey = (league: string, cur: string, hz: Horizon, end: number) =>
+	`${league}:${cur}:${hz}:${end}`;
+
 interface Call {
 	pid: string;
 	name: string;
@@ -39,6 +46,7 @@ interface Call {
 }
 interface Epoch {
 	key: string;
+	league: string; // forecasts are scoped per league
 	currencyApiId: string;
 	horizon: Horizon;
 	end: number;
@@ -64,8 +72,10 @@ function kvOf(platform: Plat): KV | undefined {
 	return platform?.env?.FORECAST_KV;
 }
 async function load(kv: KV | undefined): Promise<DB> {
-	if (kv) return ((await kv.get(KEY, 'json')) as DB | null) ?? { epochs: [] };
-	return memDB;
+	const db = kv ? (((await kv.get(KEY, 'json')) as DB | null) ?? { epochs: [] }) : memDB;
+	// migrate pre-league-scoping epochs (idempotent; persists on the next save)
+	for (const e of db.epochs) if (e.league == null) e.league = LEGACY_LEAGUE;
+	return db;
 }
 async function save(kv: KV | undefined, db: DB): Promise<void> {
 	if (db.epochs.length > 2000) {
@@ -137,9 +147,10 @@ function pearson(xs: number[], ys: number[]): number {
 // Per-forecaster skill from settled calls: Information Coefficient (correlation
 // of predicted return vs actual return), sample size, and an alpha weight that
 // shrinks small samples — separates real edge from luck.
-function forecasterSkill(db: DB): Map<string, { name: string; ic: number; n: number; hit: number; weight: number }> {
+function forecasterSkill(db: DB, league: string): Map<string, { name: string; ic: number; n: number; hit: number; weight: number }> {
 	const byPid = new Map<string, { name: string; rp: number[]; ra: number[]; hits: number }>();
 	for (const e of db.epochs) {
+		if (e.league !== league) continue;
 		const actual = e.settled?.actual;
 		if (actual == null || !(actual > 0)) continue;
 		for (const c of e.calls) {
@@ -266,17 +277,25 @@ function maybeRollover(db: DB, league: string): boolean {
 
 // Settle every due epoch we have a price for, scoring its calls. Processed in
 // settlement-time order so per-player streaks accrue chronologically.
-function settleDue(db: DB, priceOf: (cid: string) => number | undefined, now = Date.now()): boolean {
-	const due = db.epochs.filter((e) => !e.settled && e.end < now).sort((a, b) => a.end - b.end);
+function settleDue(db: DB, league: string, priceOf: (cid: string) => number | undefined, now = Date.now()): boolean {
+	const due = db.epochs
+		.filter((e) => e.league === league && !e.settled && e.end < now)
+		.sort((a, b) => a.end - b.end);
+	// only the active league's settlements feed the ladder (db.users); browsing a
+	// past league still marks its epochs settled (so charts/results show outcomes)
+	// but must not score into the current season's standings.
+	const scoring = league === db.currentLeague;
 	let changed = false;
 	for (const e of due) {
 		const actual = priceOf(e.currencyApiId);
 		if (actual == null) continue;
 		e.settled = { actual, at: now };
-		const cp = median(e.calls.map((c) => c.predicted));
-		const consAcc = cp != null && actual > 0 ? Math.max(0, 1 - Math.min(1, Math.abs(cp - actual) / actual)) : 0;
-		const contested = e.calls.length >= 2;
-		for (const c of e.calls) scoreInto(db, e, c, actual, consAcc, contested);
+		if (scoring) {
+			const cp = median(e.calls.map((c) => c.predicted));
+			const consAcc = cp != null && actual > 0 ? Math.max(0, 1 - Math.min(1, Math.abs(cp - actual) / actual)) : 0;
+			const contested = e.calls.length >= 2;
+			for (const c of e.calls) scoreInto(db, e, c, actual, consAcc, contested);
+		}
 		changed = true;
 	}
 	return changed;
@@ -294,13 +313,13 @@ export async function getForecast(
 	const db = await load(kv);
 	const rolled = maybeRollover(db, league);
 	// settle (and score) only this currency's due epochs — it's the only price we have here
-	const changed = settleDue(db, (cid) => (cid === currencyApiId ? price : undefined)) || rolled;
+	const changed = settleDue(db, league, (cid) => (cid === currencyApiId ? price : undefined)) || rolled;
 
 	// read-only: do NOT create empty epochs here (only addCall creates them)
 	const horizons = {} as Record<Horizon, HorizonState>;
 	for (const h of HORIZONS) {
 		const end = epochEnd(h);
-		const key = `${currencyApiId}:${h}:${end}`;
+		const key = epochKey(league, currencyApiId, h, end);
 		const e = db.epochs.find((x) => x.key === key);
 		const calls = e?.calls ?? [];
 		const your = pid ? calls.find((c) => c.pid === pid) : undefined;
@@ -319,7 +338,7 @@ export async function getForecast(
 	const series = {} as Record<Horizon, { you: PredPoint[]; consensus: PredPoint[] }>;
 	for (const h of HORIZONS) {
 		const eps = db.epochs
-			.filter((x) => x.currencyApiId === currencyApiId && x.horizon === h)
+			.filter((x) => x.league === league && x.currencyApiId === currencyApiId && x.horizon === h)
 			.sort((a, b) => a.end - b.end);
 		const you: PredPoint[] = [];
 		const cons: PredPoint[] = [];
@@ -352,10 +371,10 @@ export async function addCall(
 	const db = await load(kv);
 	maybeRollover(db, league);
 	const end = epochEnd(horizon);
-	const key = `${currencyApiId}:${horizon}:${end}`;
+	const key = epochKey(league, currencyApiId, horizon, end);
 	let e = db.epochs.find((x) => x.key === key);
 	if (!e) {
-		e = { key, currencyApiId, horizon, end, calls: [] };
+		e = { key, league, currencyApiId, horizon, end, calls: [] };
 		db.epochs.push(e);
 	}
 	const existing = e.calls.find((c) => c.pid === pid);
@@ -467,7 +486,7 @@ export async function getLadder(
 	const db = await load(kv);
 	const rolled = maybeRollover(db, market.league);
 	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
-	if (settleDue(db, (cid) => pm.get(cid)) || rolled) await save(kv, db);
+	if (settleDue(db, market.league, (cid) => pm.get(cid)) || rolled) await save(kv, db);
 
 	const users = Object.values(db.users ?? {}).filter((u) => u.calls > 0);
 	let entries = users.map((u) => ({ pid: u.pid, row: toRow(u, horizon) }));
@@ -499,7 +518,7 @@ export async function getPlayerByHandle(platform: Plat, market: Market, handle: 
 	const db = await load(kv);
 	const rolled = maybeRollover(db, market.league);
 	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
-	if (settleDue(db, (cid) => pm.get(cid)) || rolled) await save(kv, db);
+	if (settleDue(db, market.league, (cid) => pm.get(cid)) || rolled) await save(kv, db);
 
 	const ranked = Object.values(db.users ?? {})
 		.filter((u) => u.calls > 0)
@@ -527,11 +546,12 @@ export async function getCalibration(platform: Plat, market: Market): Promise<Ca
 	const kv = kvOf(platform);
 	const db = await load(kv);
 	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
-	if (settleDue(db, (cid) => pm.get(cid))) await save(kv, db);
+	if (settleDue(db, market.league, (cid) => pm.get(cid))) await save(kv, db);
 
 	const overall = newAcc();
 	const byH: Record<Horizon, Acc> = { hour: newAcc(), day: newAcc(), week: newAcc() };
 	for (const e of db.epochs) {
+		if (e.league !== market.league) continue;
 		const actual = e.settled?.actual;
 		if (actual == null || !(actual > 0)) continue;
 		const cp = median(e.calls.map((c) => c.predicted));
@@ -555,9 +575,9 @@ export async function getCalibration(platform: Plat, market: Market): Promise<Ca
 // Walk-forward backtest of the alpha-weighted Signal: replay settled epochs in
 // time order, computing each epoch's signal from ONLY prior-settled data (no
 // lookahead), and accumulate the directional return of trading the signal.
-function signalBacktest(db: DB): SignalBacktest {
+function signalBacktest(db: DB, league: string): SignalBacktest {
 	const settled = db.epochs
-		.filter((e) => e.settled && e.settled.actual > 0 && e.calls.some((c) => c.base && c.base > 0))
+		.filter((e) => e.league === league && e.settled && e.settled.actual > 0 && e.calls.some((c) => c.base && c.base > 0))
 		.sort((a, b) => (a.settled?.at ?? 0) - (b.settled?.at ?? 0));
 	const acc = new Map<string, { rp: number[]; ra: number[] }>();
 	const weightOf = (pid: string): number => {
@@ -615,11 +635,12 @@ export async function getSmartMoney(platform: Plat, market: Market): Promise<Sma
 	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
 	const nameOf = new Map(market.currencies.map((c) => [c.apiId, c.name]));
 
-	const skill = forecasterSkill(db);
+	const skill = forecasterSkill(db, market.league);
 
 	const now = Date.now();
 	const signals: SmartSignal[] = [];
 	for (const e of db.epochs) {
+		if (e.league !== market.league) continue;
 		if (e.settled || e.end <= now || e.end !== epochEnd(e.horizon)) continue; // current open epoch only
 		const price = pm.get(e.currencyApiId);
 		if (price == null || !(price > 0)) continue;
@@ -648,7 +669,7 @@ export async function getSmartMoney(platform: Plat, market: Market): Promise<Sma
 		.sort((a, b) => b.ic - a.ic)
 		.slice(0, 15)
 		.map((s) => ({ name: s.name, ic: s.ic, n: s.n }));
-	return { league: market.league, updatedAt: Date.now(), signals: signals.slice(0, 40), forecasters, backtest: signalBacktest(db) };
+	return { league: market.league, updatedAt: Date.now(), signals: signals.slice(0, 40), forecasters, backtest: signalBacktest(db, market.league) };
 }
 
 // ---- premium: personal performance analytics -------------------------------
@@ -701,13 +722,14 @@ export async function getMyCalls(platform: Plat, market: Market, pid: string | u
 	const rolled = maybeRollover(db, market.league);
 	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
 	const nameOf = new Map(market.currencies.map((c) => [c.apiId, c.name]));
-	if (settleDue(db, (cid) => pm.get(cid)) || rolled) await save(kv, db);
+	if (settleDue(db, market.league, (cid) => pm.get(cid)) || rolled) await save(kv, db);
 
 	const u = pid ? db.users?.[pid] : undefined;
 	const active: MyCall[] = [];
 	const settled: MyCall[] = [];
 	if (pid) {
 		for (const e of db.epochs) {
+			if (e.league !== market.league) continue;
 			const c = e.calls.find((x) => x.pid === pid);
 			if (!c) continue;
 			const name = nameOf.get(e.currencyApiId) ?? e.currencyApiId;
@@ -780,7 +802,7 @@ export async function getMyPerformance(platform: Plat, market: Market, pid: stri
 	const rolled = maybeRollover(db, market.league);
 	const pm = new Map(market.currencies.map((c) => [c.apiId, c.price]));
 	const nameOf = new Map(market.currencies.map((c) => [c.apiId, c.name]));
-	if (settleDue(db, (cid) => pm.get(cid)) || rolled) await save(kv, db);
+	if (settleDue(db, market.league, (cid) => pm.get(cid)) || rolled) await save(kv, db);
 
 	const u = pid ? db.users?.[pid] : undefined;
 	const base: MyAnalytics = {
@@ -799,6 +821,7 @@ export async function getMyPerformance(platform: Plat, market: Market, pid: stri
 	type Rec = { cur: string; hz: Horizon; acc: number; hit: boolean; rp: number; ra: number };
 	const recs: Rec[] = [];
 	for (const e of db.epochs) {
+		if (e.league !== market.league) continue;
 		const actual = e.settled?.actual;
 		if (actual == null || !(actual > 0)) continue;
 		const c = e.calls.find((x) => x.pid === pid);
