@@ -147,7 +147,14 @@ export async function getCurrentLeague(): Promise<string> {
 	if (leagueCache && Date.now() < leagueCache.expires) return leagueCache.value;
 	try {
 		const leagues = await getLeagues();
-		const current = leagues.find((l) => l.isCurrent) ?? leagues[0];
+		// Between leagues poe2scout flags nothing IsCurrent, and the list order isn't
+		// chronological — so never fall back to leagues[0] (it's the oldest league,
+		// e.g. "Dawn of the Hunt"). Use the permanent live league (Standard) in the
+		// gap; the next temp league is picked up automatically once IsCurrent flips.
+		const current =
+			leagues.find((l) => l.isCurrent) ??
+			leagues.find((l) => l.value === 'Standard') ??
+			leagues[0];
 		const value = current?.value ?? seed.league;
 		leagueCache = { value, expires: nextRefresh() };
 		return value;
